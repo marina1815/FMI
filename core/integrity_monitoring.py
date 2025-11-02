@@ -26,7 +26,7 @@ def notify_user(title, msg):
 
 def log_to_file(msg):
     ts = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
-    with open("log.txt", "a", encoding="utf-8") as f:
+    with open("../data/log.txt", "a", encoding="utf-8") as f:
         f.write(f"{ts} {msg}\n")
 
 

@@ -4,7 +4,7 @@ import threading
 import os
 import hashlib
 
-DB_PATH = "identifier.sqlite"
+DB_PATH = "../data/identifier.sqlite"
 
 _db_lock = threading.Lock()
 

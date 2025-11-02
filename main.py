@@ -1,5 +1,5 @@
 # main.py
-from integrity_monitoring import init_db, build_baseline_for_folder, check_integrity, start_monitoring, stop_monitoring
+from core.integrity_monitoring import init_db, build_baseline_for_folder, check_integrity, start_monitoring, stop_monitoring
 import sys
 from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QListWidget, QFileDialog, QPushButton, QMessageBox
 from PyQt6.QtCore import QTimer
