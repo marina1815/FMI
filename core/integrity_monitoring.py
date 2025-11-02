@@ -2,14 +2,14 @@ import hashlib
 import os
 import time
 from plyer import notification
-from gestion_db import *
+from core.gestion_db import *
 from datetime import datetime
 import threading
 
 CHECK_INTERVAL = 10  # secondes
 running = False
 _db_lock = threading.Lock()
-
+LOG_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "log.txt")
 
 def get_file_hash(path):
     try:
@@ -26,7 +26,7 @@ def notify_user(title, msg):
 
 def log_to_file(msg):
     ts = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
-    with open("../data/log.txt", "a", encoding="utf-8") as f:
+    with open(LOG_PATH, "a", encoding="utf-8") as f:
         f.write(f"{ts} {msg}\n")
 
 
