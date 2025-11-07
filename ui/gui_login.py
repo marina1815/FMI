@@ -1,31 +1,150 @@
-import sys
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import QFont, QPixmap, QAction
 from PyQt6.QtCore import Qt
-# sys.path.append(r'C:\Users\DELL\PycharmProjects\FMI\ui')
-from .gui_home import MainPage
+from ui.gui_home import MainPage
 from core.email_sender import generate_code, send_code_confirmation_email, send_confirmation_email
-from core.user_manager import hash_password, register_user, verify_login, reset_password, load_users
-
+from core.user_manager import hash_password, register_user, verify_login, reset_password, load_users, verifier_email, \
+    verifier_username
+from PyQt6.QtGui import QIcon
 
 # =========================
 # FENÊTRE PRINCIPALE
 # =========================
+
+class CustomTitleBar(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.parent = parent
+        self.setFixedHeight(30)
+        self.setStyleSheet("""
+           QWidget{
+           border: none;
+           }
+            QLabel {
+                color: white;
+                font-weight: bold;
+            }
+            QPushButton {
+                border: none;
+                background-color: transparent;
+                padding: 5px;
+            }
+            QPushButton:hover {
+                background-color: #d1cfcf;
+
+            }
+        """)
+
+        # --- Logo + texte FortiFile ---
+        self.logo = QLabel()
+        pixmap = QPixmap("img\iconFortiFile.png").scaled(
+            38, 38, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+        )
+        self.logo.setPixmap(pixmap)
+
+        self.title = QLabel("FortiFile")
+        self.title.setFont(QFont("Segoe UI Light", 16, QFont.Weight.Bold))
+        self.title.setStyleSheet("color: Black;")
+
+        # --- Boutons à droite (avec icônes) ---
+        self.btn_notify = QPushButton()
+        self.btn_minimize = QPushButton()
+        self.btn_maximize = QPushButton()
+        self.btn_close = QPushButton()
+        self.btn_mode = QPushButton()
+        # 🔔 Remplace ces chemins par tes propres icônes
+        self.btn_notify.setIcon(QIcon("img/bell.png"))
+        self.btn_minimize.setIcon(QIcon("img/minus.png"))
+        self.btn_maximize.setIcon(QIcon("img/maximize.png"))
+        self.btn_close.setIcon(QIcon("img/close.png"))
+        self.btn_mode.setIcon(QIcon("img/light.png"))
+        # Taille uniforme des boutons
+        for btn in [self.btn_notify, self.btn_minimize, self.btn_maximize, self.btn_close, self.btn_mode]:
+            btn.setFixedSize(20, 20)
+            btn.setIconSize(btn.size())
+
+        # Connexions
+        self.btn_close.clicked.connect(self.parent.close)
+        self.btn_maximize.clicked.connect(self.toggle_maximize)
+        self.btn_minimize.clicked.connect(self.minimize_window)
+        self.btn_notify.clicked.connect(self.show_notification)
+        self.btn_mode.clicked.connect(self.parent.toggle_theme)
+
+        # --- Layout ---
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.logo)
+
+        layout.addWidget(self.title)
+        layout.addStretch()
+        layout.addWidget(self.btn_mode)
+        layout.addWidget(self.btn_notify)
+        layout.addWidget(self.btn_minimize)
+        layout.addWidget(self.btn_maximize)
+        layout.addWidget(self.btn_close)
+
+    # =============================
+    #   Fonctions des boutons
+    # =============================
+    def toggle_maximize(self):
+        if self.parent.isMaximized():
+            self.parent.showNormal()
+        else:
+            self.parent.showMaximized()
+
+    def minimize_window(self):
+        self.parent.showMinimized()
+
+    def show_notification(self):
+        print("🔔 Notification cliquée !")
+
+    # =============================
+    #   Gestion du déplacement
+    # =============================
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.drag_position = event.globalPosition().toPoint()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() == Qt.MouseButton.LeftButton:
+            self.parent.move(self.parent.pos() + event.globalPosition().toPoint() - self.drag_position)
+            self.drag_position = event.globalPosition().toPoint()
+
+
 class ModernWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("File Integrity Monitor")
-        self.setGeometry(100, 100, 400, 400)
+
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setGeometry(200, 200, 500, 600)
         self.is_dark_theme = False
         self.current_content = None
-
+        self.title_bar = CustomTitleBar(self)
         central_widget = QWidget()
-        central_widget.setContentsMargins(0, 0, 0, 0)
         self.setCentralWidget(central_widget)
         self.layout = QVBoxLayout(central_widget)
         self.layout.setSpacing(0)
-
+        self.layout.addWidget(self.title_bar)
         self.container = QWidget()
+        self.container.setObjectName("containerMain")
+        self.container.setStyleSheet("""
+            QWidget#containerMain { background-color: #e1e1e3; border-radius: 20px; }
+            QLineEdit {
+                background: #fff;
+                color: black;
+                border: 1px solid #ccc;
+                border-radius: 6px;
+            }
+            QPushButton#blueButton {
+                background-color: #2301C0;
+                color: white;
+                border-radius: 8px;
+            }
+             QPushButton#blueButton : hover{
+                background-color: #120A37;
+            }
+        """)
+
         self.container_layout = QHBoxLayout(self.container)
         self.container_layout.setContentsMargins(0, 0, 0, 0)
         self.container_layout.setSpacing(0)
@@ -76,21 +195,26 @@ class ModernWindow(QMainWindow):
     def create_image_widget(self, path, right=True):
         label = QLabel()
         pixmap = QPixmap(path)
-        pixmap = pixmap.scaled(500, 600, Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                               Qt.TransformationMode.SmoothTransformation)
+
+        pixmap = pixmap.scaled(
+            500, 600,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+
         label.setPixmap(pixmap)
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        label.setStyleSheet("background-color: #000000;" if right else "background-color: #000000;")
+
+        label.setPixmap(pixmap)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setStyleSheet("""
+            background-color: black;     
+            border-radius: 20px;         
+        """)
+
         return label
 
-    def toggle_password_visibility(self):
-        """Afficher ou cacher le mot de passe du login."""
-        if self.password_login.echoMode() == QLineEdit.EchoMode.Password:
-            self.password_login.setEchoMode(QLineEdit.EchoMode.Normal)
-            self.toggle_pwd_btn.setText("👁️")  # œil barré
-        else:
-            self.password_login.setEchoMode(QLineEdit.EchoMode.Password)
-            self.toggle_pwd_btn.setText("👁️")  # œil ouvert
+
 
     # =========================
     # LOGIN
@@ -100,16 +224,12 @@ class ModernWindow(QMainWindow):
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(80, 60, 80, 60)
         layout.setSpacing(15)
-        self.theme_label = QLabel("☀️")
-        self.theme_label.setFont(QFont("Segoe UI", 20))
-        self.theme_label.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.theme_label.mousePressEvent = self.toggle_theme
-        layout.addWidget(self.theme_label)
+
 
         title = QLabel("Welcome back")
-        subtitle = QLabel("Please enter your details")
+        subtitle = QLabel("Sign in to your account.")
         title.setFont(QFont("Segoe UI", 30, QFont.Weight.Bold))
-        subtitle.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        subtitle.setFont(QFont("Segoe UI", 11))
         layout.addWidget(title)
         layout.addWidget(subtitle)
         layout.addSpacing(15)
@@ -117,39 +237,17 @@ class ModernWindow(QMainWindow):
         self.user_login = QLineEdit()
         self.user_login.setPlaceholderText("Email address")
         # ===== Champ mot de passe avec icône œil =====
-        pwd_container = QWidget()
-        pwd_layout = QHBoxLayout(pwd_container)
-        pwd_layout.setContentsMargins(0, 0, 0, 0)
-        pwd_layout.setSpacing(0)
 
         self.password_login = QLineEdit()
         self.password_login.setPlaceholderText("Password")
         self.password_login.setEchoMode(QLineEdit.EchoMode.Password)
-        #self.password_login.setStyleSheet("border: #151B54; padding: 8px; font-size: 15px;")
 
-        # 👁️ Bouton œil
-        self.toggle_pwd_btn = QPushButton("👁️")
-        self.toggle_pwd_btn.setFixedWidth(40)
-        self.toggle_pwd_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.toggle_pwd_btn.setStyleSheet("border: none; background: transparent; font-size: 16px;")
-        self.toggle_pwd_btn.clicked.connect(self.toggle_password_visibility)
-
-        pwd_layout.addWidget(self.password_login)
-        pwd_layout.addWidget(self.toggle_pwd_btn)
-
-        pwd_container.setStyleSheet("""
-            QWidget {
-                 border-radius: 6px;
-            padding: 10px; font-size: 15px;  
-            }
-            QWidget:focus { border: 1px solid #151B54; }
-
-        """)
 
         layout.addWidget(self.user_login)
-        layout.addWidget(pwd_container)
+        layout.addWidget(self.password_login)
 
-        forgot = QLabel("<a href='#'>Forgot password?</a>")
+
+        forgot = QLabel("<a href='#' style='font-weight: bold;' >Forgot password?</a>")
         forgot.setTextFormat(Qt.TextFormat.RichText)
         forgot.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         forgot.linkActivated.connect(lambda _: self.showPage("forgot"))
@@ -163,7 +261,7 @@ class ModernWindow(QMainWindow):
         layout.addWidget(signin_btn)
         layout.addSpacing(10)
 
-        footer = QLabel("Don’t have an account? <a href='#'>Sign up</a>")
+        footer = QLabel("Don’t have an account? <a href='#' style='font-weight: bold;'>Sign up</a>")
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
         footer.setTextFormat(Qt.TextFormat.RichText)
         footer.linkActivated.connect(lambda _: self.showPage("signup"))
@@ -194,7 +292,7 @@ class ModernWindow(QMainWindow):
         send_btn.clicked.connect(self.handle_forgot_password)
         layout.addWidget(send_btn)
 
-        back = QLabel("<a href='#'>Back to login</a>")
+        back = QLabel("<a href='#' style='font-weight: bold;'> Back to login</a>")
         back.setAlignment(Qt.AlignmentFlag.AlignCenter)
         back.setTextFormat(Qt.TextFormat.RichText)
         back.linkActivated.connect(lambda _: self.showPage("login"))
@@ -261,16 +359,12 @@ class ModernWindow(QMainWindow):
         layout.setContentsMargins(80, 60, 80, 60)
         layout.setSpacing(15)
 
-        self.theme_label = QLabel("☀️")
-        self.theme_label.setFont(QFont("Segoe UI", 20))
-        self.theme_label.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.theme_label.mousePressEvent = self.toggle_theme
-        layout.addWidget(self.theme_label)
+
 
         title = QLabel("Create an account")
-        subtitle = QLabel("Please fill in your details")
+        subtitle = QLabel("You can start classes as soon as you register.")
         title.setFont(QFont("Segoe UI", 30, QFont.Weight.Bold))
-        subtitle.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        subtitle.setFont(QFont("Segoe UI", 11))
         layout.addWidget(title)
         layout.addWidget(subtitle)
         layout.addSpacing(25)
@@ -296,7 +390,7 @@ class ModernWindow(QMainWindow):
         signup_btn.clicked.connect(self.handle_signup)
         layout.addWidget(signup_btn)
 
-        footer = QLabel("Already have an account? <a href='#'>Sign in</a>")
+        footer = QLabel("Already have an account? <a href='#'style='font-weight: bold;' >Sign in</a>")
         footer.setAlignment(Qt.AlignmentFlag.AlignCenter)
         footer.setTextFormat(Qt.TextFormat.RichText)
         footer.linkActivated.connect(lambda _: self.showPage("login"))
@@ -314,13 +408,22 @@ class ModernWindow(QMainWindow):
         confirm = self.password_confirm.text()
 
         if not username or not email or not pwd or not confirm:
+
             QMessageBox.warning(self, "Erreur", "Tous les champs sont obligatoires.")
             return
         if pwd != confirm:
             QMessageBox.warning(self, "Erreur", "Les mots de passe ne correspondent pas.")
             return
+        if not  verifier_email(email ) :
+            QMessageBox.critical(self, "Erreur", "Un compte existe déjà avec cet e-mail.")
+            return
+        if not verifier_username(username) :
+            QMessageBox.critical(self, "Erreur", "Ce nom d'utilisateur est déjà utilisé.")
+            return
+
 
         code = generate_code()
+        print(code)
         success = send_code_confirmation_email(email, username, code)
         if not success:
             QMessageBox.critical(self, "Erreur", "Impossible d’envoyer l’e-mail. Vérifie ta connexion.")
@@ -399,22 +502,18 @@ class ModernWindow(QMainWindow):
         self.container.hide()  # Hide login/signup container
         self.main_page = MainPage(self.is_dark_theme)
         self.layout.addWidget(self.main_page)
-        central_widget = QWidget()
-        central_widget.setLayout(self.layout)
-        self.setCentralWidget(central_widget)
-        self.window().showMaximized()
 
     # =========================
     # THEMES
     # =========================
-    def toggle_theme(self, event):
+    def toggle_theme(self):
         self.is_dark_theme = not self.is_dark_theme
         if self.is_dark_theme:
             self.apply_dark_theme()
-            self.theme_label.setText("🌙")
+
         else:
             self.apply_light_theme()
-            self.theme_label.setText("☀️")
+
 
     def apply_light_theme(self):
         self.setStyleSheet("""
@@ -424,35 +523,96 @@ class ModernWindow(QMainWindow):
             border: 1px solid #ccc; border-radius: 6px;
             padding: 10px; font-size: 15px;
         }
-        QLineEdit:focus { border: 1px solid #151B54; }
+        QLineEdit:focus { border: 1px solid #2301C0; }
         QPushButton#blueButton {
-            background-color: #151B54;
+            background-color: #2301C0;
             color: white; border-radius: 8px;
             padding: 12px; font-size: 15px; font-weight: bold;
         }
         QPushButton#blueButton:hover {
             background-color: #120A37;
         }
-        QLabel a { color: #151B54; text-decoration: none; }
+        QLabel a { color: #2301C0; text-decoration: none; }
         QLabel a:hover { text-decoration: underline; }
         """)
+        self.container.setStyleSheet("""
+                    QWidget#containerMain { background-color: #e1e1e3; border-radius: 20px; }
+                    QMainWindow { background: white; }
 
+        QLineEdit {
+            border: 1px solid #ccc; border-radius: 6px;
+            padding: 10px; font-size: 15px;
+        }
+        QLineEdit:focus { border: 1px solid #2301C0; }
+        QPushButton#blueButton {
+            background-color: #2301C0;
+            color: white; border-radius: 8px;
+            padding: 12px; font-size: 15px; font-weight: bold;
+        }
+        QPushButton#blueButton:hover {
+            background-color: #120A37;
+        }
+        QLabel a { color: #2301C0; text-decoration: none; }
+        QLabel a:hover { text-decoration: underline; }
+                """)
+        pixmap = QPixmap("img/iconFortiFile.png").scaled(
+            38, 38, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+        )
+        self.title_bar.logo.setPixmap(pixmap)
+        self.title_bar.title.setStyleSheet("color: black;")
+        self.title_bar.btn_notify.setIcon(QIcon("img/bell.png"))
+        self.title_bar.btn_minimize.setIcon(QIcon("img/minus.png"))
+        self.title_bar.btn_maximize.setIcon(QIcon("img/maximize.png"))
+        self.title_bar.btn_close.setIcon(QIcon("img/close.png"))
+        self.title_bar.btn_mode.setIcon(QIcon("img/light.png"))
     def apply_dark_theme(self):
         self.setStyleSheet("""
         QMainWindow { background: #1e1e1e; }
+      
         QLabel { color: white; }
         QLineEdit {
             background: #2d2d2d; color: white;
             border: 1px solid #555; border-radius: 6px;
-            padding: 10px;font-size: 15px;
+            padding: 8px;
         }
-         QLineEdit:focus { border: 1px solid #151B54; }
+         QLineEdit:focus { border: 1px solid #2301C0; }
         QPushButton#blueButton {
-            background-color: #151B54;
+            background-color: #2301C0;
             color: black; border-radius: 8px;
-            padding: 12px; font-weight: bold;font-size: 15px;
+            padding: 12px; font-size: 15px;font-weight: bold;
         }
         QPushButton#blueButton:hover {
             background-color: #120A37;
         }
         """)
+        self.container.setStyleSheet("""
+                    QWidget#containerMain { background-color: #2c2c2e ; border-radius: 20px; }
+                    QMainWindow { background: #1e1e1e; }
+      
+        QLabel { color: white; }
+        QLineEdit {
+            background: #2d2d2d; color: white;
+            border: 1px solid #555; border-radius: 6px;
+            padding: 8px;
+        }
+         QLineEdit:focus { border: 1px solid #2301C0; }
+        QPushButton#blueButton {
+            background-color: #100740;
+            color: white; border-radius: 8px;
+            font-weight: bold; font-size: 15px;
+        }
+        QPushButton#blueButton:hover {
+            background-color: #120A37;
+        }
+                """)
+        pixmap = QPixmap("img/iconFortiFileDark.png").scaled(
+            38, 38, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+        )
+        self.title_bar.logo.setPixmap(pixmap)
+        self.title_bar.title.setStyleSheet("color: white;")
+        self.title_bar.btn_notify.setIcon(QIcon("img/bellDark.png"))
+        self.title_bar.btn_minimize.setIcon(QIcon("img/minusDark.png"))
+        self.title_bar.btn_maximize.setIcon(QIcon("img/maximizeDark.png"))
+        self.title_bar.btn_close.setIcon(QIcon("img/closeDark.png"))
+        self.title_bar.btn_mode.setIcon(QIcon("img/dark.png"))
+
