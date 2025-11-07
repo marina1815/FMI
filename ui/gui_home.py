@@ -322,7 +322,7 @@ class MainPage(QWidget, ProfileMenuMixin):
             self.scan_frame.raise_()
 
             self.path_edit.clear()
-            self.path_edit.setPlaceholderText("No selected file/folder")
+            self.path_edit.setPlaceholderText("No selected folder")
 
     def hide_scan_frame(self):
         self.scan_frame_visible = False
@@ -334,7 +334,7 @@ class MainPage(QWidget, ProfileMenuMixin):
         self.scan_completed_label.setVisible(False)
 
         self.path_edit.clear()
-        self.path_edit.setPlaceholderText("No selected file/folder")
+        self.path_edit.setPlaceholderText("No selected folder")
 
     def browse_file(self):
         """Ouvre le dialogue de sélection de fichier"""

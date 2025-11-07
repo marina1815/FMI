@@ -1,12 +1,11 @@
 import os
-import sys
 from PyQt6.QtGui import QFont, QPixmap, QIcon, QPainter, QColor
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QSize, QDateTime, pyqtProperty
-from ui.profil import ProfileMenuMixin
 from PyQt6.QtWidgets import QGraphicsDropShadowEffect
-from PyQt6.QtGui import QColor
 
+from core.config_manager import get_mode
+from core.integrity_monitoring import *
 
 
 class ShadowFrame(QFrame):
@@ -17,793 +16,261 @@ class ShadowFrame(QFrame):
         self.setStyleSheet("""
             ShadowFrame {
                 background-color: white;
-                color:black;
                 border: 1px solid #3342CC;
-                border-radius: 25px;
+                border-radius: 20px;
                 margin: 5px;
             }
+            ShadowFrame QLabel {
+                color: black;
+                font-weight: bold;
+                background-color: white;
+            }
+            ShadowFrame QPushButton {
+                color: black;
+                background-color: #E0E0E0;
+                border-radius: 10px;
+                padding: 5px;
+            }
             ShadowFrame:hover {
-                border: 3px solid #3342CC ;
+                border: 2px solid #3342CC;
             }
         """)
+
         shadow_effect = QGraphicsDropShadowEffect()
-        shadow_effect.setBlurRadius(25)
-        shadow_effect.setColor(QColor("#6A76E8"))  # Bleu avec opacité
+        shadow_effect.setBlurRadius(20)
+        shadow_effect.setColor(QColor("#1325d1"))
         shadow_effect.setOffset(0, 0)
         self.setGraphicsEffect(shadow_effect)
 
+"""
 
-class ScanPage(QWidget, ProfileMenuMixin):
-    def __init__(self, is_dark_theme=False, current_style=None, username=None, email=None):
+ 
+btn add folder 
+btn add file 
+box  list file 
+button start scan 
+"""
+
+class ScanPage(QWidget):
+    def __init__(self, is_dark_theme=False, username=None, email=None):
         super().__init__()
         self.is_dark_theme = is_dark_theme
-        self.current_style = current_style
         self.username = username
         self.email = email
-        self.sidebar_expanded = False
-        self.scan_frame_visible = False
-        self.last_scan_time = "Never"
-        self.history_items = []
-
-        # Variables pour les tailles relatives
-        self.screen_size = QApplication.primaryScreen().availableSize()
-        self.base_width = 1400
-        self.base_height = 900
 
         self.apply_window_style()
-        if current_style:
-            self.setStyleSheet(current_style)
-
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
-
-        self.content_widget = QWidget()
-        self.content_layout = QHBoxLayout(self.content_widget)
-        self.content_layout.setContentsMargins(0, 0, 0, 0)
-        self.content_layout.setSpacing(0)
-
-        self.create_sidebar()
-        self.content_layout.addWidget(self.sidebar)
-
+        self.create_main_layout()
         self.create_main_content()
-        self.content_layout.addWidget(self.main_content, 1)
 
-        self.create_scan_frame()
-        main_layout.addWidget(self.content_widget, 1)
 
-        # Initialiser l'historique
-        self.update_scan_history_display()
 
-    def scale_value(self, value, is_width=True):
-        if is_width:
-            return int(value * self.screen_size.width() / self.base_width)
-        else:
-            return int(value * self.screen_size.height() / self.base_height)
+    # -------------------------
+    # Fenêtre principale
+    # -------------------------
+    def create_main_layout(self):
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(10, 10, 10, 10)
+        self.main_layout.setSpacing(10)
 
-    def create_scan_frame(self):
-        self.scan_frame = QFrame(self.main_content)
-
-        # Tailles relatives basées sur la résolution d'écran
-        frame_width = self.scale_value(800)
-        frame_height = self.scale_value(600, False)
-        self.scan_frame.setFixedSize(frame_width, frame_height)
-
-        self.scan_frame.setStyleSheet("""
-            QFrame {
-                background-color: white;
-                border-radius: 20px;
-                border: 2px solid #151B54;
+    def apply_window_style(self):
+        self.setStyleSheet("""
+            QWidget {
+                margin:0px;
+                padding:0px;
+                background-color: #e1e1e3;
             }
-        """)
-        self.scan_frame.setVisible(False)
-
-        scan_layout = QVBoxLayout(self.scan_frame)
-        scan_layout.setContentsMargins(
-            self.scale_value(30),
-            self.scale_value(20, False),
-            self.scale_value(30),
-            self.scale_value(20, False)
-        )
-        scan_layout.setSpacing(self.scale_value(20, False))
-
-        title_widget = QWidget()
-        title_widget.setStyleSheet("background-color: transparent;")
-        title_layout = QHBoxLayout(title_widget)
-        title_layout.setContentsMargins(0, 0, 0, 0)
-        title_layout.setSpacing(self.scale_value(15))
-
-        back_btn = QPushButton()
-        back_btn.setFixedSize(self.scale_value(45), self.scale_value(45, False))
-        back_btn.setFont(QFont("Segoe UI", self.scale_value(10)))
-        back_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        back_btn.setStyleSheet("""
-            QPushButton {
-                background-color: transparent;
-                border: none;
-                border-radius: 8px;
-            }
-            QPushButton:hover {
-                background-color: #F1F5F9;
-            }
-            QPushButton:pressed {
-                background-color: #E2E8F0;
+            QPushButton{
+            background-color: #2301C0;
+            color: white; border-radius: 8px;
+            padding: 12px; font-size: 15px; font-weight: bold;
+        }
+        QPushButton :hover {
+                background-color: #120A37;
             }
         """)
 
-        icon_size = self.scale_value(30)
-        icon_pixmap = QPixmap("img/back.png").scaled(
-            icon_size, icon_size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
-        )
-        back_btn.setIcon(QIcon(icon_pixmap))
-        back_btn.setIconSize(QSize(icon_size, icon_size))
-        back_btn.clicked.connect(self.hide_scan_frame)
+    # -------------------------
+    # Content principal
+    # -------------------------
+    def create_main_content(self):
+        self.main_content = QWidget()
+        self.main_layout.addWidget(self.main_content)
+        self.main_content_layout = QVBoxLayout(self.main_content)
+        self.main_content_layout.setContentsMargins(10, 10, 10, 10)
+        self.main_content_layout.setSpacing(20)
 
-        # Titre
-        title_label = QLabel("Select the file/folder to scan")
-        title_label.setFont(QFont("Segoe UI", self.scale_value(16), QFont.Weight.Bold))
-        title_label.setStyleSheet("color: #151B54; background-color: transparent;border:none;")
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # Header
+        header_widget = QWidget()
+        header_layout = QHBoxLayout(header_widget)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.addStretch()
+        self.main_content_layout.addWidget(header_widget)
 
-        title_layout.addWidget(back_btn)
-        title_layout.addWidget(title_label)
-        scan_layout.addWidget(title_widget)
+        # Section icône + texte
+        icon_text_widget = QWidget()
+        icon_text_layout = QHBoxLayout(icon_text_widget)
+        icon_text_layout.setSpacing(20)
+        icon_text_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # Widget pour le champs et le bouton scan
-        path_widget = QWidget()
-        path_widget.setStyleSheet("background-color: transparent;")
-        path_layout = QHBoxLayout(path_widget)
-        path_layout.setContentsMargins(0, 0, 0, 0)
-        path_layout.setSpacing(self.scale_value(15))
+        # Sections gauche/droite
+        self.sections_widget = QWidget()
+        self.sections_layout = QHBoxLayout(self.sections_widget)
+        self.sections_layout.setSpacing(20)
+        self.main_content_layout.addWidget(self.sections_widget)
+
+        # Colonne gauche
+        self.left_column = QWidget()
+        self.left_layout = QVBoxLayout(self.left_column)
+        self.left_layout.setSpacing(20)
+        self.sections_layout.addWidget(self.left_column, stretch=2)
+
+        # Quick Scan frame
+        self.create_quick_add_frame()
+        self.create_view_frame()
+
+        # Colonne droite
+        self.right_column = QWidget()
+        self.right_layout = QVBoxLayout(self.right_column)
+        self.right_layout.setSpacing(20)
+        self.sections_layout.addWidget(self.right_column, stretch=1)
+        self.create_button_frame()
+        self.create_stats_frame()
+
+
+    # -------------------------
+    # Quick Scan
+    # -------------------------
+    def create_quick_add_frame(self):
+        # === 🧭 Cadre principal ===
+        file_frame = ShadowFrame()
+        file_frame.apply_shadow_style()
+        self.left_layout.addWidget(file_frame)
+
+        main_layout = QVBoxLayout(file_frame)
+        main_layout.setContentsMargins(20, 15, 20, 15)
+        main_layout.setSpacing(15)
+
+        # === 📂 Ligne chemin + bouton de sélection ===
+        path_layout = QHBoxLayout()
+        path_layout.setSpacing(10)
 
         self.path_edit = QLineEdit()
         self.path_edit.setReadOnly(True)
-        self.path_edit.setPlaceholderText("No selected file/folder")
+        self.path_edit.setPlaceholderText("No folder selected")
         self.path_edit.setStyleSheet("""
             QLineEdit {
                 background-color: #F7FAFC;
-                border: 2px solid #E2E8F0;
+                border: 2px solid #3342CC;
                 border-radius: 10px;
-                padding: 12px;
+                padding: 10px;
                 font-size: 14px;
-                color: #4A5568;
+                color: #2D3748;
+            }
+            QLineEdit:focus {
+                border-color: #2B6CB0;
             }
         """)
 
-        self.folder_btn = QPushButton("Browse folders")
-        self.folder_btn.setFixedHeight(self.scale_value(45, False))
-        self.folder_btn.setMinimumWidth(self.scale_value(150))
-        self.folder_btn.setFont(QFont("Segoe UI", self.scale_value(12), QFont.Weight.Bold))
+        self.folder_btn = QPushButton("Browse Folders")
+        self.folder_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.folder_btn.setFixedWidth(160)
+        self.folder_btn.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
         self.folder_btn.setStyleSheet("""
             QPushButton {
-                background-color: #151B54;
+                background-color: #1A237E;
                 color: white;
                 border: none;
-                border-radius: 10px;
-                font-weight: bold;
+                border-radius: 8px;
+                padding: 10px;
             }
             QPushButton:hover {
-                background-color: #120A37;
+                background-color: #0D174D;
             }
             QPushButton:pressed {
-                background-color: #120A37;
+                background-color: #060B2B;
             }
         """)
-        self.folder_btn.clicked.connect(self.browse_folder)
+        self.folder_btn.clicked.connect(self.add_folder)
 
-        path_layout.addWidget(self.path_edit)
-        path_layout.addWidget(self.folder_btn)
-        scan_layout.addWidget(path_widget)
+        path_layout.addWidget(self.path_edit, stretch=1)
+        path_layout.addWidget(self.folder_btn, stretch=0)
+        main_layout.addLayout(path_layout)
 
-        # Zone pour l'image et le statut
-        self.image_status_widget = QWidget()
-        self.image_status_layout = QVBoxLayout(self.image_status_widget)
-        self.image_status_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_status_layout.setSpacing(self.scale_value(25, False))
-        self.image_status_widget.setStyleSheet("background-color: transparent;border:none;")
+        # === 🧱 Ligne des boutons d’action ===
+        button_layout = QHBoxLayout()
+        button_layout.setSpacing(15)
 
-        self.scan_image_label = QLabel()
-        self.scan_image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.scan_image_label.setStyleSheet("background-color: transparent;border:none;")
-
-        image_size = self.scale_value(200)
-        scan_pixmap = QPixmap("img/Scan.png")
-        if not scan_pixmap.isNull():
-            scan_pixmap = scan_pixmap.scaled(image_size, image_size, Qt.AspectRatioMode.KeepAspectRatio,
-                                             Qt.TransformationMode.SmoothTransformation)
-            self.scan_image_label.setPixmap(scan_pixmap)
-        else:
-            self.scan_image_label.setText("🔄")
-            self.scan_image_label.setStyleSheet(f"font-size: {self.scale_value(100)}px;")
-
-        self.scan_action_btn = QPushButton("Scan")
-        self.scan_action_btn.setFixedSize(self.scale_value(200), self.scale_value(45, False))
-        self.scan_action_btn.setFont(QFont("Segoe UI", self.scale_value(12), QFont.Weight.Bold))
-        self.scan_action_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #151B54;
-                color: white;
-                border: none;
-                border-radius: 10px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #120A37;
-            }
-            QPushButton:pressed {
-                background-color: #120A37;
-            }
-        """)
-        self.scan_action_btn.clicked.connect(self.start_scan)
-
-        self.scan_completed_label = QLabel("Scan completed")
-        self.scan_completed_label.setFont(QFont("Segoe UI", self.scale_value(14), QFont.Weight.Bold))
-        self.scan_completed_label.setStyleSheet("color: #059669; background-color: transparent;border:none")
-        self.scan_completed_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.scan_completed_label.setVisible(False)
-
-        self.completed_image_label = QLabel()
-        self.completed_image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.completed_image_label.setStyleSheet("background-color: transparent;border:none;")
-        self.completed_image_label.setVisible(False)
-
-        completed_pixmap = QPixmap("img/scanning-device_2.png")
-        if not completed_pixmap.isNull():
-            completed_pixmap = completed_pixmap.scaled(image_size, image_size, Qt.AspectRatioMode.KeepAspectRatio,
-                                                       Qt.TransformationMode.SmoothTransformation)
-            self.completed_image_label.setPixmap(completed_pixmap)
-        else:
-            self.completed_image_label.setText("✅")
-            self.completed_image_label.setStyleSheet(f"font-size: {self.scale_value(100)}px;")
-
-        self.image_status_layout.addWidget(self.scan_image_label)
-        self.image_status_layout.addWidget(self.scan_action_btn)
-        self.image_status_layout.addWidget(self.completed_image_label)
-        self.image_status_layout.addWidget(self.scan_completed_label)
-
-        scan_layout.addWidget(self.image_status_widget)
-        scan_layout.addStretch()
-
-    def show_scan_frame(self):
-        if not self.scan_frame_visible:
-            self.scan_frame_visible = True
-            self.center_scan_frame()
-            self.scan_frame.show()
-            self.scan_frame.raise_()
-
-            self.path_edit.clear()
-            self.path_edit.setPlaceholderText("No selected file/folder")
-
-    def hide_scan_frame(self):
-        self.scan_frame_visible = False
-        self.scan_frame.hide()
-
-        self.scan_image_label.setVisible(True)
-        self.scan_action_btn.setVisible(True)
-        self.completed_image_label.setVisible(False)
-        self.scan_completed_label.setVisible(False)
-
-        self.path_edit.clear()
-        self.path_edit.setPlaceholderText("No selected file/folder")
-
-    def browse_file(self):
-        """Ouvre le dialogue de sélection de fichier"""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Select a file/folder to scan",
-            "",
-            "Tous les fichiers (*)"
-        )
-
-        if file_path:
-            self.path_edit.setText(file_path)
-
-    def browse_folder(self):
-        """Ouvre le dialogue de sélection de dossier"""
-        folder_path = QFileDialog.getExistingDirectory(
-            self,
-            "Select a folder to scan",
-            ""
-        )
-
-        if folder_path:
-            self.path_edit.setText(folder_path)
-
-    def add_scan_to_history(self, scan_info):
-        """Ajoute une entrée à l'historique des scans"""
-        if not hasattr(self, 'history_content_layout'):
-            print("Erreur: history_content_layout non initialisé")
-            return
-
-        # Supprimer le message "No scan history" s'il existe
-        for i in reversed(range(self.history_content_layout.count())):
-            widget = self.history_content_layout.itemAt(i).widget()
-            if widget and isinstance(widget, QLabel) and "No scan history" in widget.text():
-                self.history_content_layout.removeWidget(widget)
-                widget.deleteLater()
-
-        # Créer un widget pour l'entrée d'historique
-        history_item = QFrame()
-        history_item.setFixedHeight(self.scale_value(60, False))
-        history_item.setStyleSheet("""
-            QFrame {
-                background-color: #151B54;
-                border-radius: 10px;
-                border: 1px solid #3342CC;
-            }
-        """)
-
-        item_layout = QHBoxLayout(history_item)
-        item_layout.setContentsMargins(
-            self.scale_value(15),
-            self.scale_value(10, False),
-            self.scale_value(15),
-            self.scale_value(10, False)
-        )
-        item_layout.setSpacing(self.scale_value(15))
-
-        # Icône de statut
-        status_icon = QLabel()
-        if scan_info.get("status") == "completed":
-            status_icon.setStyleSheet("""
-                QLabel {
-                    background-color: #10B981;
-                    border-radius: 7px;
-                    min-width: 14px;
-                    min-height: 14px;
-                    max-width: 14px;
-                    max-height: 14px;
-                }
+        # Fonction pour styliser les boutons
+        def create_button(text, color="#1A237E", hover="#0D174D", callback=None):
+            btn = QPushButton(text)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+            btn.setMinimumHeight(45)
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {color};
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    padding: 10px 15px;
+                }}
+                QPushButton:hover {{
+                    background-color: {hover};
+                }}
+                QPushButton:pressed {{
+                    background-color: #060B2B;
+                }}
             """)
-        else:
-            status_icon.setStyleSheet("""
-                QLabel {
-                    background-color: #EF4444;
-                    border-radius: 7px;
-                    min-width: 14px;
-                    min-height: 14px;
-                    max-width: 14px;
-                    max-height: 14px;
-                }
-            """)
+            if callback:
+                btn.clicked.connect(callback)
+            return btn
 
-        # Informations du scan
-        info_widget = QWidget()
-        info_layout = QVBoxLayout(info_widget)
-        info_layout.setContentsMargins(0, 0, 0, 0)
-        info_layout.setSpacing(self.scale_value(4, False))
-
-        # Tronquer le chemin si trop long
-        path = scan_info.get("path", "Unknown path")
-        display_path = path if len(path) < 60 else path[:37] + "..."
-
-        path_label = QLabel(display_path)
-        path_label.setFont(QFont("Segoe UI", self.scale_value(10), QFont.Weight.Medium))
-        path_label.setStyleSheet("color: white; background-color: transparent;border:none;")
-        path_label.setToolTip(path)  # Tooltip avec le chemin complet
-
-        time_label = QLabel(scan_info.get("time", "Unknown time"))
-        time_label.setFont(QFont("Segoe UI", self.scale_value(9)))
-        time_label.setStyleSheet("color: rgba(255, 255, 255, 0.7); background-color: transparent;border:none;")
-
-        info_layout.addWidget(path_label)
-        info_layout.addWidget(time_label)
-
-        # Résultat
-        result_label = QLabel(scan_info.get("result", "No threats"))
-        result_label.setFont(QFont("Segoe UI", self.scale_value(10), QFont.Weight.Medium))
-        if scan_info.get("threats_found", 0) > 0:
-            result_label.setStyleSheet("color: #EF4444; background-color: transparent;border:none;")
-        else:
-            result_label.setStyleSheet("color: #10B981; background-color: transparent;border:none;")
-
-        item_layout.addWidget(status_icon)
-        item_layout.addWidget(info_widget, 1)
-        item_layout.addWidget(result_label)
-
-        # Ajouter au début de la liste (le plus récent en premier)
-        self.history_content_layout.insertWidget(0, history_item)
-        self.history_items.insert(0, history_item)
-
-        # Limiter à 10 entrées maximum
-        if len(self.history_items) > 10:
-            old_item = self.history_items.pop()
-            self.history_content_layout.removeWidget(old_item)
-            old_item.deleteLater()
-
-    def update_scan_history_display(self):
-        """Met à jour l'affichage de l'historique"""
-        # Effacer l'historique actuel
-        for i in reversed(range(self.history_content_layout.count())):
-            widget = self.history_content_layout.itemAt(i).widget()
-            if widget and widget != self.history_content_layout.itemAt(i).widget():  # Éviter les doublons
-                self.history_content_layout.removeWidget(widget)
-                widget.deleteLater()
-
-        # Réinitialiser la liste
-        self.history_items.clear()
-
-        # Si pas d'historique, afficher un message
-        if len(self.history_items) == 0:
-            no_history_label = QLabel("No scan history available")
-            no_history_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            no_history_label.setFont(QFont("Segoe UI", self.scale_value(11)))
-            no_history_label.setStyleSheet("""
-                color: #525063; 
-                background-color: transparent; 
-                padding: 20px;
-                border :1px solid #3342CC;
-                font-weight:bold;
-            """)
-            no_history_label.setMinimumHeight(self.scale_value(100, False))
-            self.history_content_layout.addWidget(no_history_label)
-
-    def start_scan(self):
-        path = self.path_edit.text().strip()
-
-        if not path:
-            QMessageBox.warning(self, "Warning", "Please select a file or a folder to scan")
-            return
-
-        if not os.path.exists(path):
-            QMessageBox.critical(self, "Erreur", "the path doesn't exist")
-            return
-
-        # Enregistrer l'heure actuelle du scan
-        current_time = QDateTime.currentDateTime().toString("yyyy-MM-dd HH:mm:ss")
-        self.last_scan_time = current_time
-
-        # Mettre à jour l'affichage dans la carte bleue
-        self.update_last_scan_display()
-
-        # Simuler un résultat de scan (à remplacer par votre logique réelle)
-        threats_found = 0  # Simuler aucune menace trouvée
-        scan_status = "completed"
-
-        # Ajouter à l'historique
-        scan_info = {
-            "path": path,
-            "time": current_time,
-            "status": scan_status,
-            "result": "No threats found" if threats_found == 0 else f"{threats_found} threats found",
-            "threats_found": threats_found
-        }
-
-        self.add_scan_to_history(scan_info)
-
-        self.scan_image_label.setVisible(False)
-        self.scan_action_btn.setVisible(False)
-
-        # Afficher l'image de complétion et le texte
-        self.completed_image_label.setVisible(True)
-        self.scan_completed_label.setVisible(True)
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        if self.scan_frame_visible:
-            self.center_scan_frame()
-
-    def center_scan_frame(self):
-        # Obtenir la géométrie du contenu principal
-        main_rect = self.main_content.rect()
-
-        x = (main_rect.width() - self.scan_frame.width()) // 2
-        y = (main_rect.height() - self.scan_frame.height()) // 2
-
-        self.scan_frame.move(x, y)
-
-    def create_sidebar(self):
-        """Crée une sidebar collapsible avec tailles relatives"""
-        self.sidebar = QWidget()
-        self.sidebar.setMinimumWidth(self.scale_value(100))
-        self.sidebar.setMaximumWidth(self.scale_value(200))
-        self.sidebar.setFixedWidth(self.scale_value(100))
-        self.apply_sidebar_style()
-
-        self.sidebar_layout = QVBoxLayout(self.sidebar)
-        self.sidebar_layout.setContentsMargins(self.scale_value(20), 0, 0, 0)
-        self.sidebar_layout.setSpacing(self.scale_value(10))
-        self.create_sidebar_logo()
-
-        self.create_sidebar_buttons()
-
-        self.sidebar_layout.addStretch()
-        self.show_sidebar_text(False)
-
-    def create_sidebar_buttons(self):
-        """Crée les boutons de la sidebar avec icônes et texte"""
-        self.sidebar_layout.addSpacing(self.scale_value(30, False))
-        self.scan_btn = self.create_nav_button("img/scanner.png", "Home", "scanner")
-        self.dashboard_btn = self.create_nav_button("img/dashboard.png", "Dashboard", "dashboard")
-        self.identity_btn = self.create_nav_button("img/identity.png", "Identity", "identity")
-
-        for btn in [self.scan_btn, self.dashboard_btn, self.identity_btn]:
-            self.sidebar_layout.addWidget(btn)
-
-        self.sidebar_layout.addSpacing(self.scale_value(380, False))
-
-        self.settings_btn = self.create_nav_button("img/setting.png", "Settings", "setting")
-        self.help_btn = self.create_nav_button("img/question.png", "Help", "question")
-        self.about_btn = self.create_nav_button("img/about.png", "About", "about")
-
-        for btn in [self.settings_btn, self.help_btn, self.about_btn]:
-            self.sidebar_layout.addWidget(btn)
-
-        self.select_button(self.scan_btn)
-
-    def create_nav_button(self, icon_path, tooltip="", button_id=""):
-        """Crée un bouton de navigation avec icône seulement"""
-        button = QPushButton()
-        button.setFixedHeight(self.scale_value(45, False))
-        button.setFont(QFont("Segoe UI", self.scale_value(10)))
-        button.setProperty("button_id", button_id)
-
-        icon_size = self.scale_value(30)
-        icon_pixmap = QPixmap(icon_path).scaled(icon_size, icon_size, Qt.AspectRatioMode.KeepAspectRatio,
-                                                Qt.TransformationMode.SmoothTransformation)
-        button.setIcon(QIcon(icon_pixmap))
-        button.setIconSize(QSize(icon_size, icon_size))
-        button.clicked.connect(lambda checked, btn=button: self.on_nav_button_clicked(btn))
-        button.clicked.connect(self.toggle_sidebar)
-        return button
-
-    def create_main_content(self):
-        """Crée la zone de contenu principale avec des tailles relatives"""
-        self.main_content = QWidget()
-        self.apply_main_content_style()
-
-        main_layout = QVBoxLayout(self.main_content)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
-
-        header_widget = QWidget()
-        header_widget.setFixedHeight(self.scale_value(60, False))
-        header_layout = QHBoxLayout(header_widget)
-        header_layout.setContentsMargins(
-            self.scale_value(20),
-            self.scale_value(10, False),
-            self.scale_value(20),
-            self.scale_value(10, False)
-        )
-        header_layout.addStretch()
-
-        profile_menu = self.create_profile_menu()
-
-        # Mettre à jour le nom d'utilisateur dans le menu profil
-        if hasattr(self, 'username') and self.username:
-            self.set_username(self.username)
-
-        header_layout.addWidget(profile_menu)
-        main_layout.addWidget(header_widget)
-
-        # Contenu principal avec message de bienvenue personnalisé
-        content_widget = QWidget()
-        content_layout = QVBoxLayout(content_widget)
-        content_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        content_layout.setSpacing(self.scale_value(40, False))
-        content_layout.setContentsMargins(
-            self.scale_value(40),
-            self.scale_value(20, False),
-            self.scale_value(40),
-            self.scale_value(20, False)
+        self.addFolder_btn = create_button("➕ Add Folder to Database", color="#3342CC", hover="#2B3AA0")
+        self.createFile_btn = create_button("📄 Create File", color="#3342CC", hover="#2B3AA0")
+        self.showContent_btn = create_button(
+            "📁 Show Folder Content",
+            color="#283593",
+            hover="#1E2B6B",
+            callback=self.refresh_list  # 🔗 Connexion directe à ta fonction
         )
 
-        icon_text_widget = QWidget()
-        icon_text_layout = QHBoxLayout(icon_text_widget)
-        icon_text_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_text_layout.setSpacing(self.scale_value(20))
+        button_layout.addWidget(self.addFolder_btn)
+        button_layout.addWidget(self.createFile_btn)
+        button_layout.addWidget(self.showContent_btn)
 
-        icon_label = QLabel()
-        icon_size = self.scale_value(50)
-        icon_pixmap = QPixmap("img/evaluation.png")
-        if not icon_pixmap.isNull():
-            icon_pixmap = icon_pixmap.scaled(icon_size, icon_size, Qt.AspectRatioMode.KeepAspectRatio,
-                                             Qt.TransformationMode.SmoothTransformation)
-            icon_label.setPixmap(icon_pixmap)
-        else:
-            icon_label.setText("🛡️")
-            icon_label.setStyleSheet(f"font-size: {self.scale_value(32)}px;")
+        main_layout.addLayout(button_layout)
 
-        # Ajouter le texte
-        text_label = QLabel(
-            "Welcome to FortiFile ,where you can monitor file changes and secure your critical data in real-time.")
-        text_label.setFont(QFont("Segoe UI", self.scale_value(16), QFont.Weight.Bold))
-        text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        text_label.setWordWrap(True)
-        text_label.setStyleSheet("color: #151B54;")
-        text_label.setMinimumWidth(self.scale_value(600))
+    def add_folder (self):
+        folder = QFileDialog.getExistingDirectory(window, "Select a folder ")
+        if folder:
+            try:
+                self.path_edit.setText(f"{folder}")
 
-        icon_text_layout.addWidget(icon_label)
-        icon_text_layout.addWidget(text_label)
-        content_layout.addWidget(icon_text_widget)
 
-        # Layout principal pour les sections
-        main_sections_widget = QWidget()
-        main_sections_layout = QHBoxLayout(main_sections_widget)
-        main_sections_layout.setContentsMargins(0, 0, 0, 0)
-        main_sections_layout.setSpacing(self.scale_value(20))
+            except Exception as error:
+                QMessageBox.critical(window, "Erreur", f"Impossible to add folder :\n{error}")
 
-        # Colonne de gauche
-        left_column_widget = QWidget()
-        left_column_layout = QVBoxLayout(left_column_widget)
-        left_column_layout.setContentsMargins(0, 0, 0, 0)
-        left_column_layout.setSpacing(self.scale_value(20, False))
 
-        # File/folder selection
-        file_frame = ShadowFrame()
-        file_frame.apply_shadow_style()
-        file_frame.setMinimumHeight(self.scale_value(120, False))
+    def create_view_frame(self):
+        """Crée une zone d'affichage défilable pour voir les fichiers d'un dossier (ex: log.txt)."""
+        # === 📦 Cadre principal ===
+        view_frame = ShadowFrame()
+        view_frame.apply_shadow_style()
+        self.left_layout.addWidget(view_frame)
 
-        frame_layout = QHBoxLayout(file_frame)
-        frame_layout.setContentsMargins(
-            self.scale_value(30),
-            self.scale_value(20, False),
-            self.scale_value(30),
-            self.scale_value(20, False)
-        )
-        frame_layout.setSpacing(self.scale_value(20))
+        layout = QVBoxLayout(view_frame)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
 
-        scan_icon_label = QLabel()
-        scan_icon_label.setStyleSheet("background-color: transparent; border: none;")
-        scan_icon_size = self.scale_value(30)
-        scan_icon_pixmap = QPixmap("img/quickScan.png")
-        if not scan_icon_pixmap.isNull():
-            scan_icon_pixmap = scan_icon_pixmap.scaled(scan_icon_size, scan_icon_size,
-                                                       Qt.AspectRatioMode.KeepAspectRatio,
-                                                       Qt.TransformationMode.SmoothTransformation)
-            scan_icon_label.setPixmap(scan_icon_pixmap)
-        else:
-            scan_icon_label.setText("🔍")
-            scan_icon_label.setStyleSheet(
-                f"font-size: {self.scale_value(24)}px; color: white;border:none;background-color:transparent;")
+        # === 🧾 Titre ===
+        title_label = QLabel("📂 Folder File Viewer")
+        title_label.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
+        title_label.setStyleSheet("color: #1A237E;")
+        layout.addWidget(title_label)
 
-        title_widget = QWidget()
-        title_widget.setStyleSheet("background-color: transparent;")
-        title_layout = QVBoxLayout(title_widget)
-        title_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        title_layout.setSpacing(self.scale_value(5, False))
-        title_layout.setContentsMargins(0, 0, 0, 0)
-
-        scan_title = QLabel("Quick Scan")
-        scan_title.setFont(QFont("Segoe UI", self.scale_value(14), QFont.Weight.Bold))
-        scan_title.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        scan_title.setStyleSheet("color: black; background-color: transparent; padding: 0; margin: 0;border:none;")
-
-        lastScan = QLabel("Last Scan: Never")
-        lastScan.setObjectName("last_scan_label")
-        lastScan.setFont(QFont("Segoe UI", self.scale_value(10), QFont.Weight.Medium))
-        lastScan.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        lastScan.setStyleSheet(
-            "color: #525063; background-color: transparent; padding: 0; margin: 0;border:none;font-weight:bold;")
-
-        title_layout.addWidget(scan_title)
-        title_layout.addWidget(lastScan)
-
-        # Bouton Scan
-        scan_btn = QPushButton("Scan Now")
-        scan_btn.setFixedSize(self.scale_value(120), self.scale_value(45, False))
-        scan_btn.setFont(QFont("Segoe UI", self.scale_value(12), QFont.Weight.Bold))
-        scan_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #10B981;
-                color: white;
-                border: none;
-                border-radius: 10px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #059669;
-            }
-        """)
-        scan_btn.clicked.connect(self.show_scan_frame)
-
-        frame_layout.addWidget(scan_icon_label)
-        frame_layout.addWidget(title_widget)
-        frame_layout.addStretch()
-        frame_layout.addWidget(scan_btn)
-
-        # Auto scan frame
-        Autoscan_frame = ShadowFrame()
-        Autoscan_frame.apply_shadow_style()
-        Autoscan_frame.setMinimumHeight(self.scale_value(120, False))
-
-        Autoscan_layout = QHBoxLayout(Autoscan_frame)
-        Autoscan_layout.setContentsMargins(
-            self.scale_value(30),
-            self.scale_value(20, False),
-            self.scale_value(30),
-            self.scale_value(20, False)
-        )
-        Autoscan_layout.setSpacing(self.scale_value(20))
-
-        Autoscan_label = QLabel()
-        Autoscan_label.setStyleSheet("background-color: transparent; border: none;")
-        Autoscan_icon_pixmap = QPixmap("img/encrypted.png")
-        if not Autoscan_icon_pixmap.isNull():
-            Autoscan_icon_pixmap = Autoscan_icon_pixmap.scaled(scan_icon_size, scan_icon_size,
-                                                               Qt.AspectRatioMode.KeepAspectRatio,
-                                                               Qt.TransformationMode.SmoothTransformation)
-            Autoscan_label.setPixmap(Autoscan_icon_pixmap)
-        else:
-            Autoscan_label.setText("🔍")
-            Autoscan_label.setStyleSheet(
-                f"font-size: {self.scale_value(24)}px; color: white;border:none;background-color:transparent;")
-
-        Autoscan_widget = QWidget()
-        Autoscan_widget.setStyleSheet("background-color: transparent;")
-        Autoscan_title_layout = QVBoxLayout(Autoscan_widget)
-        Autoscan_title_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        Autoscan_title_layout.setSpacing(self.scale_value(5, False))
-        Autoscan_title_layout.setContentsMargins(0, 0, 0, 0)
-
-        Autoscan_title = QLabel("Auto scan")
-        Autoscan_title.setFont(QFont("Segoe UI", self.scale_value(14), QFont.Weight.Bold))
-        Autoscan_title.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        Autoscan_title.setStyleSheet("color: black; background-color: transparent; padding: 0; margin: 0;border:none;")
-
-        Autoscan_lastScan = QLabel("Scan at Windows startup")
-        Autoscan_lastScan.setFont(QFont("Segoe UI", self.scale_value(10), QFont.Weight.Medium))
-        Autoscan_lastScan.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        Autoscan_lastScan.setStyleSheet(
-            "color: #525063; background-color: transparent; padding: 0; margin: 0;border:none;;font-weight:bold;")
-
-        Autoscan_title_layout.addWidget(Autoscan_title)
-        Autoscan_title_layout.addWidget(Autoscan_lastScan)
-
-        # Ajouter le toggle switch
-        self.auto_scan_switch = ModernSwitch()
-        self.auto_scan_switch.toggled.connect(self.on_auto_scan_toggled)
-
-        Autoscan_layout.addWidget(Autoscan_label)
-        Autoscan_layout.addWidget(Autoscan_widget)
-        Autoscan_layout.addStretch()
-        Autoscan_layout.addWidget(self.auto_scan_switch)
-
-        # Frame de l'historique des scans
-        history_frame = ShadowFrame()
-        history_frame.apply_shadow_style()
-        history_frame.setMinimumHeight(self.scale_value(300, False))
-
-        history_layout = QVBoxLayout(history_frame)
-        history_layout.setContentsMargins(
-            self.scale_value(30),
-            self.scale_value(20, False),
-            self.scale_value(30),
-            self.scale_value(20, False)
-        )
-        history_layout.setSpacing(self.scale_value(20, False))
-
-        # Widget pour contenir l'icône et le titre de l'historique
-        history_icon_title_widget = QWidget()
-        history_icon_title_widget.setStyleSheet("background-color: transparent;")
-        history_icon_title_layout = QHBoxLayout(history_icon_title_widget)
-        history_icon_title_layout.setContentsMargins(0, 0, 0, 0)
-        history_icon_title_layout.setSpacing(self.scale_value(15))
-        history_icon_title_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-
-        history_label = QLabel()
-        history_label.setStyleSheet("background-color: transparent; border: none;")
-        history_icon_pixmap = QPixmap("img/history.png")
-        if not history_icon_pixmap.isNull():
-            history_icon_pixmap = history_icon_pixmap.scaled(scan_icon_size, scan_icon_size,
-                                                             Qt.AspectRatioMode.KeepAspectRatio,
-                                                             Qt.TransformationMode.SmoothTransformation)
-            history_label.setPixmap(history_icon_pixmap)
-        else:
-            history_label.setText("📋")
-            history_label.setStyleSheet(
-                f"font-size: {self.scale_value(24)}px; color: white;border:none;background-color:transparent;")
-
-        historyTitle = QLabel("Scan History")
-        historyTitle.setFont(QFont("Segoe UI", self.scale_value(14), QFont.Weight.Bold))
-        historyTitle.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        historyTitle.setStyleSheet("color: black; background-color: transparent; padding: 0; margin: 0; border: none;")
-
-        history_icon_title_layout.addWidget(history_label)
-        history_icon_title_layout.addWidget(historyTitle)
-
-        # Zone de défilement pour l'historique
+        # === 🧱 ScrollArea ===
         self.history_scroll_area = QScrollArea()
+        self.history_scroll_area.setWidgetResizable(True)
         self.history_scroll_area.setStyleSheet("""
             QScrollArea {
                 background-color: transparent;
@@ -828,420 +295,154 @@ class ScanPage(QWidget, ProfileMenuMixin):
                 background: none;
             }
         """)
-        self.history_scroll_area.setWidgetResizable(True)
-        self.history_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.history_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.history_scroll_area.setFrameShape(QFrame.Shape.NoFrame)
 
-        # Widget pour contenir les éléments d'historique
-        self.history_content = QWidget()
-        self.history_content.setStyleSheet("background-color: transparent;")
-        self.history_content_layout = QVBoxLayout(self.history_content)
-        self.history_content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.history_content_layout.setSpacing(self.scale_value(8, False))
-        self.history_content_layout.setContentsMargins(
-            self.scale_value(2),
-            self.scale_value(2, False),
-            self.scale_value(8),
-            self.scale_value(2, False)
-        )
+        # === 📜 Conteneur interne (scrollable) ===
+        scroll_content = QWidget()
+        self.scroll_layout = QVBoxLayout(scroll_content)
+        self.scroll_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.scroll_layout.setSpacing(6)
 
-        self.history_scroll_area.setWidget(self.history_content)
+        self.history_scroll_area.setWidget(scroll_content)
+        layout.addWidget(self.history_scroll_area)
 
-        history_layout.addWidget(history_icon_title_widget)
-        history_layout.addWidget(self.history_scroll_area)
-
-        # Ajouter les frames à la colonne de gauche
-        left_column_layout.addWidget(file_frame)
-        left_column_layout.addWidget(Autoscan_frame)
-        left_column_layout.addWidget(history_frame)
-
-        # Colonne de droite - Stats
-        stats_frame = ShadowFrame()
-        stats_frame.apply_shadow_style()
-        stats_frame.setMinimumHeight(self.scale_value(500, False))
-
-        stats_layout = QVBoxLayout(stats_frame)
-        stats_layout.setContentsMargins(
-            self.scale_value(30),
-            self.scale_value(20, False),
-            self.scale_value(30),
-            self.scale_value(20, False)
-        )
-        stats_layout.setSpacing(self.scale_value(20, False))
-
-        # Widget pour contenir l'icône et le titre (sur la même ligne)
-        icon_title_widget = QWidget()
-        icon_title_widget.setStyleSheet("background-color: transparent;")
-        icon_title_layout = QHBoxLayout(icon_title_widget)
-        icon_title_layout.setContentsMargins(0, 0, 0, 0)
-        icon_title_layout.setSpacing(self.scale_value(15))
-        icon_title_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-
-        stats_label = QLabel()
-        stats_label.setStyleSheet("background-color: transparent; border: none;")
-        stats_icon_pixmap = QPixmap("img/file overview.png")
-        if not stats_icon_pixmap.isNull():
-            stats_icon_pixmap = stats_icon_pixmap.scaled(scan_icon_size, scan_icon_size,
-                                                         Qt.AspectRatioMode.KeepAspectRatio,
-                                                         Qt.TransformationMode.SmoothTransformation)
-            stats_label.setPixmap(stats_icon_pixmap)
-        else:
-            stats_label.setText("📊")
-            stats_label.setStyleSheet(
-                f"font-size: {self.scale_value(24)}px; color: white;border:none;background-color:transparent;")
-
-        statsTitle = QLabel("File status overview")
-        statsTitle.setFont(QFont("Segoe UI", self.scale_value(14), QFont.Weight.Bold))
-        statsTitle.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        statsTitle.setStyleSheet("color: black; background-color: transparent; padding: 0; margin: 0; border: none;")
-
-        icon_title_layout.addWidget(stats_label)
-        icon_title_layout.addWidget(statsTitle)
-
-        stats_layout.addWidget(icon_title_widget, alignment=Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignLeft)
-        stats_layout.addStretch()
-
-        # Ajouter les colonnes au layout principal
-        main_sections_layout.addWidget(left_column_widget)
-        main_sections_layout.addWidget(stats_frame, alignment=Qt.AlignmentFlag.AlignTop)
-
-        content_layout.addWidget(main_sections_widget)
-        main_layout.addWidget(content_widget, 1)
-
-    def on_auto_scan_toggled(self, checked):
-        """Gère le changement d'état du switch Auto Scan"""
-        if checked:
-            print("Auto scan activé - Analyse au démarrage de Windows activée")
-            # Ici vous pouvez ajouter la logique pour activer l'analyse au démarrage
-        else:
-            print("Auto scan désactivé - Analyse au démarrage de Windows désactivée")
-            # Ici vous pouvez ajouter la logique pour désactiver l'analyse au démarrage
-
-    def create_sidebar_logo(self):
-        logo_container = QWidget()
-        logo_container.setFixedHeight(self.scale_value(50, False))
-        logo_layout = QHBoxLayout(logo_container)
-        logo_layout.setContentsMargins(0, 0, 0, 0)
-
-        logo_size = self.scale_value(25)
-        logo_label = QLabel()
-        logo_label.setFixedSize(logo_size, logo_size)
-        logo_pixmap = QPixmap("img/menu (1).png").scaled(logo_size, logo_size, Qt.AspectRatioMode.KeepAspectRatio,
-                                                         Qt.TransformationMode.SmoothTransformation)
-        logo_label.setPixmap(logo_pixmap)
-        logo_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        # === 🔄 Label de statut + bouton refresh ===
+        control_layout = QHBoxLayout()
+        self.stats_label = QLabel("No folder selected.")
+        self.stats_label.setStyleSheet("color: #4A5568; font-size: 13px;")
 
 
-        logo_layout.addWidget(logo_label)
-        self.sidebar_layout.addWidget(logo_container)
 
-    def select_button(self, button):
-        """Sélectionne un bouton et désélectionne les autres"""
-        all_buttons = [self.scan_btn, self.dashboard_btn, self.identity_btn,
-                       self.settings_btn, self.help_btn, self.about_btn]
 
-        for btn in all_buttons:
-            self.deselect_button(btn)
+        layout.addLayout(control_layout)
 
-        if self.is_dark_theme:
-            button.setStyleSheet("""
-                QPushButton {
-                    background-color:#525063;
-                    color: #0D0422;
-                    border: none;
-                    border-radius: 5px;
-                    font-weight: bold;
-                    text-align: left;
-                    padding: 10px 5px;
-                    font-size: 16px;
-                    width: 200px;
-                    border-left: 4px solid #FFFFFF;
-                    border-top-left-radius: 20px;
-                    border-bottom-left-radius: 20px;
-                    border-top-right-radius: 0px;
-                    border-bottom-right-radius: 0px;
-                    max-width: 220px;
-                }
-            """)
-        else:
-            button.setStyleSheet("""
-                QPushButton {
-                    background-color:#DFDFED;
-                    color: #151B54;
-                    border: none;
-                    border-radius: 5px;
-                    font-weight: bold;
-                    text-align: left;
-                    padding: 10px 5px;
-                    font-size: 16px;
-                    width: 200px;
-                    border-left: 4px solid #FFFFFF;
-                    border-top-left-radius: 20px;
-                    border-bottom-left-radius: 20px;
-                    border-top-right-radius: 0px;
-                    border-bottom-right-radius: 0px;
-                    max-width: 220px;
-                }
-            """)
-
-        button_id = button.property("button_id")
-        colored_icon_path = f"img/{button_id}_selec.png"
-
-        colored_pixmap = QPixmap(colored_icon_path)
-        if not colored_pixmap.isNull():
-            icon_size = self.scale_value(24)
-            colored_pixmap = colored_pixmap.scaled(icon_size, icon_size, Qt.AspectRatioMode.KeepAspectRatio,
-                                                   Qt.TransformationMode.SmoothTransformation)
-            button.setIcon(QIcon(colored_pixmap))
-        else:
-            icon_size = self.scale_value(24)
-            normal_icon_path = f"img/{button_id}.png"
-            normal_pixmap = QPixmap(normal_icon_path).scaled(icon_size, icon_size, Qt.AspectRatioMode.KeepAspectRatio,
-                                                             Qt.TransformationMode.SmoothTransformation)
-            button.setIcon(QIcon(normal_pixmap))
-
-        self.current_selected_button = button
-
-    def deselect_button(self, button):
-        button.setStyleSheet("""
-            QPushButton {
-                background-color: transparent;
-                color: #FFFFFF;
-                border: none;
-                border-radius: 5px;
-                font-weight: bold;
-                text-align: left;
-                padding: 10px 5px;
-                min-width: 100px;
-                width: 200px;
-                max-width: 200px;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: rgba(255, 255, 255, 0.1);
-                font-size: 14px;
-            }
-        """)
-
-        button_id = button.property("button_id")
-        normal_icon_path = f"img/{button_id}.png"
-
-        normal_pixmap = QPixmap(normal_icon_path)
-        if not normal_pixmap.isNull():
-            icon_size = self.scale_value(24)
-            normal_pixmap = normal_pixmap.scaled(icon_size, icon_size, Qt.AspectRatioMode.KeepAspectRatio,
-                                                 Qt.TransformationMode.SmoothTransformation)
-            button.setIcon(QIcon(normal_pixmap))
-
-    def on_nav_button_clicked(self, clicked_button):
-        """Gère le clic sur un bouton de navigation"""
-        self.select_button(clicked_button)
-        button_id = clicked_button.property("button_id")
-        print(f"Bouton cliqué: {button_id}")
-
-    def show_sidebar_text(self, show):
+    def refresh_list(self):
+        """Actualise la liste des fichiers dans la zone de scroll."""
         try:
-            buttons = [self.scan_btn, self.dashboard_btn, self.identity_btn,
-                       self.settings_btn, self.help_btn, self.about_btn]
-            icons = ["img/scanner.png", "img/dashboard.png", "img/identity.png",
-                     "img/setting.png", "img/question.png", "img/about.png"]
-            active_icons = ["img/scanner_selec.png", "img/dashboard_selec.png", "img/identity_selec.png",
-                            "img/setting_selec.png", "img/question_selec.png", "img/about_selec.png"]
-            texts = [" Home", " Dashboard", " Identity", " Settings", " Help", " About"]
+            # 🔄 Nettoyage
+            for i in reversed(range(self.scroll_layout.count())):
+                widget = self.scroll_layout.itemAt(i).widget()
+                if widget:
+                    widget.deleteLater()
 
+            folder_path = self.path_edit.text().strip()
+            if not folder_path or not os.path.isdir(folder_path):
+                self.stats_label.setText("❌ Please select a valid folder.")
+                return
 
-            icon_size = self.scale_value(24)
-            for i, btn in enumerate(buttons):
-                if show:
-                    if hasattr(self, 'current_selected_button') and btn == self.current_selected_button:
-                        icon_path = active_icons[i]
-                    else:
-                        icon_path = icons[i]
+            files = os.listdir(folder_path)
+            if not files:
+                self.stats_label.setText("📭 Folder is empty.")
+                return
 
-                    icon_pixmap = QPixmap(icon_path).scaled(icon_size, icon_size, Qt.AspectRatioMode.KeepAspectRatio,
-                                                            Qt.TransformationMode.SmoothTransformation)
-                    btn.setIcon(QIcon(icon_pixmap))
-                    btn.setText(texts[i])
-                    btn.setToolTip("")
+            # 🧾 Ajout des fichiers dans la zone scrollable
+            for file in sorted(files):
+                item_label = QLabel(f"📄 {file}")
+                item_label.setStyleSheet("""
+                    QLabel {
+                        background-color: #EDF2F7;
+                        border: 1px solid #CBD5E0;
+                        border-radius: 8px;
+                        padding: 6px 10px;
+                        color: #2D3748;
+                    }
+                    QLabel:hover {
+                        background-color: #E2E8F0;
+                    }
+                """)
+                self.scroll_layout.addWidget(item_label)
 
-                    if hasattr(self, 'current_selected_button') and btn == self.current_selected_button:
-                        self.select_button(btn)
-                else:
-                    if hasattr(self, 'current_selected_button') and btn == self.current_selected_button:
-                        icon_path = active_icons[i]
-                    else:
-                        icon_path = icons[i]
+            self.stats_label.setText(f"✅ {len(files)} files loaded.")
+        except Exception as error:
+            self.stats_label.setText(f"⚠️ Error: {error}")
 
-                    icon_pixmap = QPixmap(icon_path).scaled(icon_size, icon_size, Qt.AspectRatioMode.KeepAspectRatio,
-                                                            Qt.TransformationMode.SmoothTransformation)
-                    btn.setIcon(QIcon(icon_pixmap))
-                    btn.setText("")
-                    btn.setToolTip(texts[i].strip())
+    def start_scan(self):
+        print(get_mode())
+        if get_mode()=="auto":
 
-                    if hasattr(self, 'current_selected_button') and btn == self.current_selected_button:
-                        self.select_button(btn)
-
-        except Exception as e:
-            print(f"Error in show_sidebar_text: {e}")
-
-    def apply_sidebar_style(self):
-        if self.is_dark_theme:
-            self.sidebar.setStyleSheet("""
-                QWidget {
-                    background-color: rgba(37, 37, 55, 0.7);
-                    border-right: 1px solid #4A5568;
-                }
-                QPushButton {
-                    background-color: transparent;
-                    color: #FFFFFF;
-                    border: none;
-                    border-radius: 5px;
-                    text-align: left;
-                    padding: 10px;
-                    padding: 10px 5px;
-                    min-width: 40px;
-                }
-                QPushButton:hover {
-                    background-color: #2D3748;
-                }
-                QPushButton:pressed {
-                    background-color: #9F7AEA;
-                    color: #1A202C;
-                }
-            """)
+            QMessageBox.warning(self, "Erreur", "le mode est auto le scan.")
         else:
-            self.sidebar.setStyleSheet("""
-                QWidget {
-                    background-color: #151B54;
-                    border-right: 1px solid #5A4FDF;
-                }
-                QLabel {
-                    color: #FFFFFF;
-                    background-color: transparent;
-                    font-weight: bold;
-                }
-                QPushButton {
-                    background-color: transparent;
-                    color: #FFFFFF;
-                    border: none;
-                    border-radius: 5px;
-                    text-align: left;
-                    padding: 10px;
-                    padding: 10px 5px;
-                    min-width: 50px;
-                }
-                QPushButton:hover {
-                    background-color: #5A4FDF;
-                }
-                QPushButton:pressed {
-                    background-color: #FFFFFF;
-                    color: #6A5FF5;
-                }
-            """)
+            print('Start scan ')
+            print(get_mode())
+    # -------------------------
+    # Stats
+    # -------------------------
+    def create_stats_frame(self):
+        scan_frame = ShadowFrame()
+        scan_frame.apply_shadow_style()
+        self.right_layout.addWidget(scan_frame)
+        layout = QVBoxLayout(scan_frame)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
+        label = QLabel()
+        pixmap = QPixmap("logoApplication.png")
 
-    def apply_main_content_style(self):
-        if self.is_dark_theme:
-            self.main_content.setStyleSheet("""
-                QMainWindow {
-                    margin: 0px;
-                    padding: 0px;
-                    background-color: #FFFFFF;
+        pixmap = pixmap.scaled(
+            500, 500,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+        label.setPixmap(pixmap)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        label.setPixmap(pixmap)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.scan_btn = QPushButton("Start Scan")
+        self.scan_btn.setStyleSheet("""
+                 QPushButton{
+                    background-color: #2301C0;
+                    color: white; border-radius: 8px;
+                    padding: 12px; font-size: 15px; font-weight: bold;
                 }
-                QWidget {
-                    margin: 0px;
-                    padding: 0px;
-                    border: none;
-                }
-                QWidget {
-                    background-color: #FFFFFF;
-                }
-                QLabel {
-                    color: #FFFFFF;
-                    background-color: transparent;
-                    margin: 0px;
-                    padding: 0px;
-                }
-            """)
+                QPushButton :hover {
+                        background-color: #120A37;
+                    }
+                """)
+
+        self.scan_btn.clicked.connect(self.start_scan)
+        layout.addWidget(label)
+        layout.addWidget(self.scan_btn)
+
+    def create_button_frame(self):
+        button_frame = ShadowFrame()
+        button_frame.apply_shadow_style()
+        self.right_layout.addWidget(button_frame)
+        layout = QVBoxLayout(button_frame)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
+
+        Autoscan_title = QLabel("Auto scan status")
+        Autoscan_title.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        Autoscan_title.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        Autoscan_title.setStyleSheet("color: black; background-color: transparent; padding: 0; margin: 0;border:none;")
+        Autoscan_lastScan = QLabel("Disabled")
+        if get_mode()== "manuel":
+            Autoscan_lastScan.setText("🔴 Disabled")
+            Autoscan_lastScan.setStyleSheet("color: red; background-color: transparent; padding: 0; margin: 0;border:none;")
         else:
-            self.main_content.setStyleSheet("""
-                QWidget {
-                    background-color: #DFDFED;
-                    margin: 0px;
-                    padding: 0px;
-                    border: none;
-                }
-                QLabel {
-                    color: #5D5898;
-                    background-color: transparent;
-                    margin: 0px;
-                    padding: 0px;
-                }
-            """)
+            Autoscan_lastScan.setText("🟢 Running ...")
+            Autoscan_lastScan.setStyleSheet("color: green ; background-color: transparent; padding: 0; margin: 0;border:none;")
+
+
+
+        layout.addWidget(Autoscan_title)
+        layout.addWidget(Autoscan_lastScan)
 
     def update_last_scan_display(self):
-        """Met à jour l'affichage du dernier scan dans la carte bleue"""
         last_scan_label = self.findChild(QLabel, "last_scan_label")
         if last_scan_label:
-            if self.last_scan_time == "Never":
-                last_scan_label.setText("Last Scan: Never")
-            else:
-                last_scan_label.setText(f"Last Scan: {self.last_scan_time}")
-
-    def apply_window_style(self):
-        self.setStyleSheet("""
-            QMainWindow, QWidget {
-                margin: 0px;
-                padding: 0px;
-                border: none;
-            }
-        """)
-
-    def go_back(self):
-        """Retourne à la page de login"""
-        pass
-
-    def toggle_sidebar(self):
-        self.sidebar_expanded = not self.sidebar_expanded
-
-        self.animation_min = QPropertyAnimation(self.sidebar, b"minimumWidth")
-        self.animation_max = QPropertyAnimation(self.sidebar, b"maximumWidth")
-
-        for anim in (self.animation_min, self.animation_max):
-            anim.setDuration(300)
-            anim.setEasingCurve(QEasingCurve.Type.InOutQuart)
-
-        if self.sidebar_expanded:
-            self.animation_min.setStartValue(self.scale_value(100))
-            self.animation_min.setEndValue(self.scale_value(200))
-            self.animation_max.setStartValue(self.scale_value(100))
-            self.animation_max.setEndValue(self.scale_value(200))
-            self.animation_max.finished.connect(lambda: self.show_sidebar_text(True))
-        else:
-            self.show_sidebar_text(False)
-            self.animation_min.setStartValue(self.scale_value(200))
-            self.animation_min.setEndValue(self.scale_value(100))
-            self.animation_max.setStartValue(self.scale_value(200))
-            self.animation_max.setEndValue(self.scale_value(100))
-
-        self.animation_min.start()
-        self.animation_max.start()
+            last_scan_label.setText(f"Last Scan: {self.last_scan_time}")
 
 
+
+
+# -------------------------
+# Lancer l'application
+# -------------------------
 if __name__ == "__main__":
     import sys
-    from PyQt6.QtWidgets import QApplication
-
     app = QApplication(sys.argv)
-
-    # Créer et afficher la fenêtre principale
-    window = ScanPage(
-        is_dark_theme=False,
-        current_style=None,
-        username="Tester",
-        email="tester@example.com"
-    )
+    window = ScanPage(username="Tester", email="tester@example.com")
     window.resize(1200, 700)
     window.show()
-
     sys.exit(app.exec())

@@ -7,7 +7,7 @@ from PyQt6.QtGui import QPixmap, QIcon, QFont
 
 from ui.gui_home import MainPage
 from ui.gui_dashboard import DashboardPage
-
+from ui.gui_scanner import ScanPage
 
 class AppWindow(QWidget):
     def __init__(self):
@@ -33,7 +33,7 @@ class AppWindow(QWidget):
         # Pages
         self.home_page = None
         self.dashboard_page = None
-
+        self.scan_page = None
         # Taille de la fenêtre
         self.setMinimumSize(1000, 600)
 
@@ -209,6 +209,13 @@ class AppWindow(QWidget):
             self.stack.addWidget(self.dashboard_page)
         self.stack.setCurrentWidget(self.dashboard_page)
 
+    def load_scan(self, username):
+        if self.scan_page is None:
+
+            self.scan_page = ScanPage(username=username)
+            self.stack.addWidget(self.scan_page)
+        self.stack.setCurrentWidget(self.scan_page)
+
     # =========================================================
     # 🔹 Sélection bouton
     # =========================================================
@@ -219,11 +226,11 @@ class AppWindow(QWidget):
 
         # 🚀 Charger la page correspondante
         if button_id == "scanner":
-            self.load_home(username="User")  # ou passe le vrai username
+            self.load_scan(username="User")  # ou passe le vrai username
         elif button_id == "dashboard":
             self.load_dashboard(username="User")
         elif button_id == "identity":
-            print("Identity page pas encore implémentée")
+            self.load_home(username="User")
         elif button_id == "setting":
             print("Settings page pas encore implémentée")
         elif button_id == "question":
