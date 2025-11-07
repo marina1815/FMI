@@ -1,7 +1,8 @@
 import json
 import os
 
-CONFIG_FILE = "config.json"
+
+CONFIG_FILE = os.path.join(os.path.dirname(__file__), "config.json")
 
 
 def config_exists():
@@ -23,6 +24,7 @@ def get_mode():
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
+
         return data.get("mode")
     except Exception:
         return None
@@ -47,3 +49,4 @@ def update_mode(mode):
     data["mode"] = mode
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
+
