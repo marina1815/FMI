@@ -8,7 +8,7 @@ from PyQt6.QtGui import QGuiApplication, QFont
 
 from core.integrity_monitoring import *
 from ui.gui_login import ModernWindow
-
+from ui.main_window import AppWindow
 
 def center_window(window):
     """Centers a PyQt window on the screen (cross-platform and DPI-aware)."""
@@ -93,7 +93,7 @@ def main_window():
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     try:
-        principal_window = ModernWindow()
+        principal_window = AppWindow()
         principal_window.show()        # Show first
         center_window(principal_window)  # Then center
         sys.exit(app.exec())

@@ -4,15 +4,8 @@ import threading
 import os
 import hashlib
 
-import os
-
-# Base directory of the project (go one level up from /core)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-# Construct absolute path to /data/identifier.sqlite
 DB_PATH = os.path.join(BASE_DIR, "data", "identifier.sqlite")
-
-
 
 _db_lock = threading.Lock()
 
@@ -125,12 +118,23 @@ def insert_folder(path):
     """Ajoute un dossier à surveiller (ou ignore s’il existe déjà)"""
     execute_write("INSERT OR IGNORE INTO folders (path) VALUES (?)", (path,))
 
-def insert_baseline_entry(folder_id, path, hash_val, size, modified_time):
-    """Ajoute un fichier à la baseline"""
+
+def insert_baseline_entry(folder_id, path, hash_val, size, modified_time, username=None):
+    """Insert or replace baseline; store optional username (owner)."""
     execute_write("""
-        INSERT OR REPLACE INTO baseline (folder_id, path, hash, size, modified_time)
-        VALUES (?, ?, ?, ?, ?)
-    """, (folder_id, path, hash_val, size, modified_time))
+        INSERT OR REPLACE INTO baseline (folder_id, path, hash, size, modified_time, username)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (folder_id, path, hash_val, size, modified_time, username))
+
+def get_baseline_owner(path):
+    """Return the username (owner) for a given baseline path, or None if not set."""
+    rows = execute_fetchall("SELECT username FROM baseline WHERE path=?", (path,))
+    return rows[0][0] if rows and rows[0][0] is not None else None
+
+def set_baseline_owner(path, username):
+    """Set/transfer owner for a given baseline file (admin-only operation intended)."""
+    execute_write("UPDATE baseline SET username=? WHERE path=?", (username, path))
+
 
 def get_folder_id(path):
     """Retourne l’ID du dossier surveillé"""
@@ -162,10 +166,10 @@ def insert_folder_and_baseline_for_path(folder):
                 st = os.stat(full_path)
                 insert_baseline_entry(folder_id, full_path, h, st.st_size, datetime.fromtimestamp(st.st_mtime).isoformat())
                 count += 1
-            except Exception:
+            except Exception :
                 continue
 
-    log_event("baseline", f"{count} fichiers enregistrés pour {folder}")
+    log_event("info", f"{count} fichiers enregistrés pour {folder}")
     return count
 
 # ==============================
@@ -258,3 +262,85 @@ def get_baseline_dict():
     return get_baseline()
 
 
+
+# ==============================
+# DASHBOARD / STATISTICS
+# ==============================
+
+def get_dashboard_stats():
+    """Return a summary of global stats for the dashboard."""
+    stats = {}
+
+    # Total folders and baseline files
+    stats["total_folders"] = execute_fetchall("SELECT COUNT(*) FROM folders")[0][0]
+    stats["total_baseline_files"] = execute_fetchall("SELECT COUNT(*) FROM baseline")[0][0]
+
+    # Suspects by type
+    stats["suspects_total"] = execute_fetchall("SELECT COUNT(*) FROM suspects WHERE resolved=0")[0][0]
+    stats["suspects_modified"] = execute_fetchall("SELECT COUNT(*) FROM suspects WHERE state='modified' AND resolved=0")[0][0]
+    stats["suspects_deleted"] = execute_fetchall("SELECT COUNT(*) FROM suspects WHERE state='deleted' AND resolved=0")[0][0]
+    stats["suspects_new"] = execute_fetchall("SELECT COUNT(*) FROM suspects WHERE state='new' AND resolved=0")[0][0]
+
+    # Events count by type
+    stats["events_info"] = execute_fetchall("SELECT COUNT(*) FROM events WHERE event_type='info'")[0][0]
+    stats["events_alert"] = execute_fetchall("SELECT COUNT(*) FROM events WHERE event_type='alert'")[0][0]
+    stats["events_warning"] = execute_fetchall("SELECT COUNT(*) FROM events WHERE event_type='warning'")[0][0]
+    stats["events_error"] = execute_fetchall("SELECT COUNT(*) FROM events WHERE event_type='error'")[0][0]
+
+    # Pending notifications
+    stats["pending_notifications"] = execute_fetchall("SELECT COUNT(*) FROM notifications WHERE status='pending'")[0][0]
+
+    return stats
+
+
+def get_recent_events(limit=10):
+    """Return the N most recent events."""
+    return execute_fetchall("""
+        SELECT timestamp, event_type, description, file_path, level
+        FROM events
+        ORDER BY timestamp DESC
+        LIMIT ?
+    """, (limit,))
+
+
+def get_suspect_trend(days=7):
+    """Return count of new suspects per day (for the last N days)."""
+    return execute_fetchall(f"""
+        SELECT strftime('%Y-%m-%d', first_detected) AS day, COUNT(*)
+        FROM suspects
+        WHERE first_detected >= datetime('now', '-{days} days')
+        GROUP BY day
+        ORDER BY day 
+    """)
+
+
+def get_event_trend(days=7):
+    """Return number of events per day (for charts)."""
+    return execute_fetchall(f"""
+        SELECT strftime('%Y-%m-%d', timestamp) AS day, COUNT(*)
+        FROM events
+        WHERE timestamp >= datetime('now', '-{days} days')
+        GROUP BY day
+        ORDER BY day 
+    """)
+
+
+def get_top_modified_files(limit=5):
+    """Return top modified files (recent suspects)."""
+    return execute_fetchall("""
+        SELECT path, state, last_seen
+        FROM suspects
+        WHERE resolved=0 AND state='modified'
+        ORDER BY last_seen DESC
+        LIMIT ?
+    """, (limit,))
+
+
+def get_notifications(limit=5):
+    """Return latest notifications."""
+    return execute_fetchall("""
+        SELECT title, message, status, sent_at
+        FROM notifications
+        ORDER BY sent_at DESC
+        LIMIT ?
+    """, (limit,))

@@ -1,14 +1,9 @@
-#add home = MainPage(username=logged_user_name)
-
-
-
-
 import sys
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import QFont, QPixmap, QAction
 from PyQt6.QtCore import Qt
 # sys.path.append(r'C:\Users\DELL\PycharmProjects\FMI\ui')
-from ui.gui_home import MainPage
+from .gui_home import MainPage
 from core.email_sender import generate_code, send_code_confirmation_email, send_confirmation_email
 from core.user_manager import hash_password, register_user, verify_login, reset_password, load_users
 
@@ -25,6 +20,7 @@ class ModernWindow(QMainWindow):
         self.current_content = None
 
         central_widget = QWidget()
+        central_widget.setContentsMargins(0, 0, 0, 0)
         self.setCentralWidget(central_widget)
         self.layout = QVBoxLayout(central_widget)
         self.layout.setSpacing(0)
@@ -129,7 +125,7 @@ class ModernWindow(QMainWindow):
         self.password_login = QLineEdit()
         self.password_login.setPlaceholderText("Password")
         self.password_login.setEchoMode(QLineEdit.EchoMode.Password)
-        self.password_login.setStyleSheet("border: none; padding: 8px; font-size: 15px;")
+        #self.password_login.setStyleSheet("border: #151B54; padding: 8px; font-size: 15px;")
 
         # 👁️ Bouton œil
         self.toggle_pwd_btn = QPushButton("👁️")
@@ -143,11 +139,10 @@ class ModernWindow(QMainWindow):
 
         pwd_container.setStyleSheet("""
             QWidget {
-                border: 1px solid  #2301C0 ;
                  border-radius: 6px;
             padding: 10px; font-size: 15px;  
             }
-            QWidget:focus { border: 1px solid #2301C0; }
+            QWidget:focus { border: 1px solid #151B54; }
 
         """)
 
@@ -404,6 +399,10 @@ class ModernWindow(QMainWindow):
         self.container.hide()  # Hide login/signup container
         self.main_page = MainPage(self.is_dark_theme)
         self.layout.addWidget(self.main_page)
+        central_widget = QWidget()
+        central_widget.setLayout(self.layout)
+        self.setCentralWidget(central_widget)
+        self.window().showMaximized()
 
     # =========================
     # THEMES
@@ -425,16 +424,16 @@ class ModernWindow(QMainWindow):
             border: 1px solid #ccc; border-radius: 6px;
             padding: 10px; font-size: 15px;
         }
-        QLineEdit:focus { border: 1px solid #2301C0; }
+        QLineEdit:focus { border: 1px solid #151B54; }
         QPushButton#blueButton {
-            background-color: #2301C0;
+            background-color: #151B54;
             color: white; border-radius: 8px;
             padding: 12px; font-size: 15px; font-weight: bold;
         }
         QPushButton#blueButton:hover {
             background-color: #120A37;
         }
-        QLabel a { color: #2301C0; text-decoration: none; }
+        QLabel a { color: #151B54; text-decoration: none; }
         QLabel a:hover { text-decoration: underline; }
         """)
 
@@ -445,16 +444,15 @@ class ModernWindow(QMainWindow):
         QLineEdit {
             background: #2d2d2d; color: white;
             border: 1px solid #555; border-radius: 6px;
-            padding: 8px;
+            padding: 10px;font-size: 15px;
         }
-         QLineEdit:focus { border: 1px solid #2301C0; }
+         QLineEdit:focus { border: 1px solid #151B54; }
         QPushButton#blueButton {
-            background-color: #2301C0;
+            background-color: #151B54;
             color: black; border-radius: 8px;
-            padding: 12px; font-weight: bold;
+            padding: 12px; font-weight: bold;font-size: 15px;
         }
         QPushButton#blueButton:hover {
             background-color: #120A37;
         }
         """)
-

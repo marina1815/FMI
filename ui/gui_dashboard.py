@@ -1,340 +1,335 @@
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy, QApplication, QGraphicsDropShadowEffect
+)
+from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QRect
+from PyQt6.QtGui import QFont, QColor
 import sys
-import os
-from PyQt6.QtGui import QFont, QPixmap, QIcon
-from PyQt6.QtWidgets import *
-from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QSize
 
-from core.integrity_monitoring import  start_monitoring
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+import matplotlib.ticker as mticker
 
-from core.gestion_db import insert_folder_and_baseline_for_path, get_connection
-from PyQt6.QtCore import QThread, pyqtSignal
+from core.gestion_db import *
 
-class MonitorThread(QThread):
-    update_signal = pyqtSignal(str)  # Send messages to GUI
-
-    def run(self):
-        try:
-            start_monitoring()
-            self.update_signal.emit("Monitoring finished")
-        except Exception as e:
-            self.update_signal.emit(f"Error: {e}")
-
-
-class MainPage(QWidget):
-    def __init__(self, is_dark_theme=False):
+class HoverFrame(QFrame):
+    """A QFrame that brightens, enlarges, and casts shadow on hover."""
+    def __init__(self, base_color: str, radius: int = 16, hover_factor: float = 1.15):
         super().__init__()
-        self.is_dark_theme = is_dark_theme
-        self.sidebar_expanded = False
+        self.base_color = QColor(base_color)
+        self.hover_color = self._brighter_color(self.base_color, hover_factor)
+        self.current_color = self.base_color
+        self.radius = radius
 
-        # Layout principal
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        # Shadow
+        self.shadow = QGraphicsDropShadowEffect(blurRadius=25, xOffset=0, yOffset=4, color=QColor(0, 0, 0, 120))
+        self.setGraphicsEffect(self.shadow)
+        self.shadow.setEnabled(False)
 
-        # Contenu principal avec sidebar
-        self.content_widget = QWidget()
-        self.content_layout = QHBoxLayout(self.content_widget)
-        self.content_layout.setContentsMargins(0, 0, 0, 0)
-        self.content_layout.setSpacing(0)
+        # Default appearance
+        self.setStyleSheet(f"border-radius: {self.radius}px; background-color: {self.base_color.name()};")
+        self.anim_color = None
+        self.anim_scale = None
 
-        # Sidebar
-        self.create_sidebar()
-        self.content_layout.addWidget(self.sidebar)
+    def _brighter_color(self, color, factor):
+        r = min(int(color.red() * factor), 255)
+        g = min(int(color.green() * factor), 255)
+        b = min(int(color.blue() * factor), 255)
+        return QColor(r, g, b)
 
-        # Zone principale
-        self.main_content = QWidget()
-        self.content_layout.addWidget(self.main_content, 1)
+    # --- Color transition ---
+    def _animate_color(self, to_color):
+        if self.anim_color:
+            self.anim_color.stop()
 
-        main_layout.addWidget(self.content_widget, 1)
+        self.anim_color = QPropertyAnimation(self, b"windowOpacity")
+        self.anim_color.setDuration(180)
+        self.anim_color.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        self.setStyleSheet(f"border-radius: {self.radius}px; background-color: {to_color.name()};")
 
-        # Styles
-        self.apply_styles()
+    # --- Scale animation ---
+    def animate_scale(self, scale_factor):
+        parent = self.parentWidget()
+        if not parent:
+            return
+        geo = self.geometry()
+        cx, cy = geo.center().x(), geo.center().y()
+        new_w, new_h = geo.width() * scale_factor, geo.height() * scale_factor
+        new_x = cx - new_w / 2
+        new_y = cy - new_h / 2
 
-        # Question auto-start
-        QTimer.singleShot(500, self.ask_autostart_question)
+        if self.anim_scale:
+            self.anim_scale.stop()
 
-    # ---------------- Sidebar ----------------
-    def create_sidebar(self):
-        self.sidebar = QWidget()
-        self.sidebar.setMinimumWidth(60)
-        self.sidebar.setMaximumWidth(350)
-        self.sidebar.setFixedWidth(60)
+        self.anim_scale = QPropertyAnimation(self, b"geometry")
+        self.anim_scale.setDuration(150)
+        self.anim_scale.setEasingCurve(QEasingCurve.Type.OutQuad)
+        self.anim_scale.setStartValue(geo)
+        self.anim_scale.setEndValue(QRect(int(new_x), int(new_y), int(new_w), int(new_h)))
+        self.anim_scale.start()
 
-        self.sidebar_layout = QVBoxLayout(self.sidebar)
-        self.sidebar_layout.setContentsMargins(8, 15, 8, 15)
-        self.sidebar_layout.setSpacing(5)
+    def enterEvent(self, event):
+        self.shadow.setEnabled(True)
+        self._animate_color(self.hover_color)
+        self.animate_scale(1.04)
+        super().enterEvent(event)
 
-        # Header
-        self.create_sidebar_header()
-        self.sidebar_layout.addWidget(self.sidebar_header)
+    def leaveEvent(self, event):
+        self.shadow.setEnabled(False)
+        self._animate_color(self.base_color)
+        self.animate_scale(1.0)
+        super().leaveEvent(event)
 
-        # Boutons
-        self.create_sidebar_buttons()
-        self.sidebar_layout.addStretch()
-        self.show_sidebar_text(False)
 
-    def create_sidebar_header(self):
-        self.sidebar_header = QWidget()
-        layout = QHBoxLayout(self.sidebar_header)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
 
-        # Logo
-        self.logo_label = QLabel()
-        pixmap = QPixmap("img/account.png").scaled(32, 32, Qt.AspectRatioMode.KeepAspectRatio,
-                                                         Qt.TransformationMode.SmoothTransformation)
-        self.logo_label.setPixmap(pixmap)
-        self.logo_label.setFixedSize(32, 32)
-        layout.addWidget(self.logo_label)
 
-        # Titre
-        self.title_label = QLabel("File Integrity Monitor")
-        self.title_label.setFont(QFont("Poppins", 14, QFont.Weight.DemiBold))
-        layout.addWidget(self.title_label)
 
-    def create_sidebar_buttons(self):
-        """Créer les boutons avec icônes images et actions spécifiques"""
-        icon_paths = [
-            "img/dashboard.png",
-            "img/scanne.png",
-            "img/account.png",
-            "img/biometrics.png",
-            "img/settings.png",
-            "img/document.png",
-            "img/help-.png"
-        ]
-        texts = ["Dashboard", "Scanner", "Profil", "Identity", "Settings", "Raports", "Help"]
+class DashboardPage(QWidget):
+    def __init__(self, username="User", dark_mode=False):
+        super().__init__()
+        self.username = username
+        self.dark_mode = dark_mode
 
-        self.sidebar_buttons = []
-        self.sidebar_texts = texts
-
-        # Définition des actions pour chaque bouton
-        actions = [
-            self.open_dashboard,
-            self.open_scanner,
-            self.open_profile,
-            self.open_identity,
-            self.open_settings,
-            self.open_reports,
-            self.open_help
-        ]
-
-        for i, path in enumerate(icon_paths):
-            btn = QPushButton()
-            btn.setFixedHeight(50)
-            btn.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
-            btn.setIcon(QIcon(path))
-            btn.setIconSize(QSize(30, 30))
-
-            # Connexion à l'action + toggle sidebar
-            btn.clicked.connect(lambda checked, func=actions[i]: [self.toggle_sidebar(), func()])
-
-            self.sidebar_buttons.append(btn)
-            self.sidebar_layout.addWidget(btn)
-
-    def toggle_sidebar(self):
-        self.sidebar_expanded = not self.sidebar_expanded
-
-        self.animation_min = QPropertyAnimation(self.sidebar, b"minimumWidth")
-        self.animation_max = QPropertyAnimation(self.sidebar, b"maximumWidth")
-        for anim in (self.animation_min, self.animation_max):
-            anim.setDuration(300)
-            anim.setEasingCurve(QEasingCurve.Type.InOutQuart)
-
-        if self.sidebar_expanded:
-            self.animation_min.setStartValue(60)
-            self.animation_min.setEndValue(280)
-            self.animation_max.setStartValue(60)
-            self.animation_max.setEndValue(280)
-            self.animation_max.finished.connect(lambda: self.show_sidebar_text(True))
+        # === Theme colors ===
+        if self.dark_mode:
+            self.bg_color = "#202020"
+            self.card_color = "#444444"
+            self.text_color = "#FFFFFF"
+            self.subtext_color = "#CCCCCC"
         else:
-            self.show_sidebar_text(False)
-            self.animation_min.setStartValue(280)
-            self.animation_min.setEndValue(60)
-            self.animation_max.setStartValue(280)
-            self.animation_max.setEndValue(60)
-
-        self.animation_min.start()
-        self.animation_max.start()
-
-    def show_sidebar_text(self, show):
-        """Afficher ou masquer le texte des boutons"""
-        try:
-            for i, btn in enumerate(self.sidebar_buttons):
-                btn.setText(self.sidebar_texts[i] if show else "")
-                btn.setIconSize(QSize(30, 30))
-            self.title_label.setVisible(show)
-        except Exception as e:
-            print(f"Error in show_sidebar_text: {e}")
+            self.bg_color = "#eef2f6"
+            self.card_color = "#151b54"
+            self.text_color = "#FFFFFF"
+            self.subtext_color = "#E0E0E0"
 
 
-    # ---------------- Styles ----------------
-    def apply_styles(self):
-        self.apply_sidebar_style()
-        self.apply_main_content_style()
+        # === Load data from DB ===
+        stats = get_dashboard_stats()
+        events = get_recent_events(limit=5)
 
-    def apply_sidebar_style(self):
-        style = """
-            QWidget { background-color: #041240; border: none; }
-            QPushButton { background-color: transparent; color: white; border: none; text-align: left; padding: 12px 8px; border-radius: 8px; }
-            QPushButton:hover { background-color: #5b6da6; }
-        """
-        self.sidebar.setStyleSheet(style)
+        added = str(stats.get("suspects_new", 0))
+        modified = str(stats.get("suspects_modified", 0))
+        deleted = str(stats.get("suspects_deleted", 0))
+        total = str(stats.get("total_baseline_files", 0))
 
-    def apply_main_content_style(self):
-        self.main_content.setStyleSheet("background-color: #EDF2FF;")
-
-    # ---------------- Auto-start Question ----------------
-    def ask_autostart_question(self):
-        msg = QMessageBox(self)
-        msg.setWindowTitle("Paramètre de démarrage")
-        msg.setIcon(QMessageBox.Icon.Question)
-        msg.setText(
-            "Souhaitez-vous autoriser le lancement automatique de l'application au démarrage de Windows ?"
-        )
-
-        msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        msg.button(QMessageBox.StandardButton.Yes).setText("Activer le démarrage automatique")
-        msg.button(QMessageBox.StandardButton.No).setText("Lancer manuellement")
-
-        self.apply_theme_to_messagebox(msg)
-        result = msg.exec()
-
-        if result == QMessageBox.StandardButton.Yes:
-            self.show_confirmation("Le démarrage automatique a été activé avec succès.")
+        # Construct last scan summary from latest event
+        if events:
+            last_event = events[0]
+            last_scan_text = (
+                f"Type: {last_event[1]}  |  "
+                f"Description: {last_event[2]}  |  "
+                f"Time: {last_event[0]}"
+            )
         else:
-            self.show_confirmation("Le mode manuel a été sélectionné.")
+            last_scan_text = "No scans recorded yet."
 
-    def apply_theme_to_messagebox(self, msg_box):
-        light_style = """
-            QMessageBox { background-color: #FFFFFF; color: #2D3748; }
-            QMessageBox QLabel { color: #2D3748; }
-            QMessageBox QPushButton {
-                background-color: #6A5FF5;
+        # === Layout ===
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(20)
+
+        # === Row 1: Stats ===
+        stats_layout = QHBoxLayout()
+        stats_layout.setSpacing(20)
+        stats_layout.addWidget(self.create_stat_box(" Added Files", added))
+        stats_layout.addWidget(self.create_stat_box(" Modified Files", modified))
+        stats_layout.addWidget(self.create_stat_box(" Deleted Files", deleted))
+        stats_layout.addWidget(self.create_stat_box(" Total Monitored", total))
+
+        # === Row 2: Last Scan ===
+        last_scan_box = self.create_long_box("Last Scan", last_scan_text)
+
+        # === Row 3: History + Distribution ===
+        row3_layout = QHBoxLayout()
+        row3_layout.setSpacing(20)
+        row3_layout.addWidget(self.create_big_box(" Scan History", "History of scans or events"))
+        row3_layout.addWidget(self.create_graph_box("Change Distribution"))
+
+        # === Assemble ===
+        main_layout.addLayout(stats_layout)
+        main_layout.addWidget(last_scan_box)
+        main_layout.addLayout(row3_layout)
+
+        self.setLayout(main_layout)
+        self.setStyleSheet(f"background-color: {self.bg_color}; QLabel {{ font-family: 'Segoe UI'; }}")
+
+
+    # --- Box builders ---
+    def create_stat_box(self, title, value):
+        frame = HoverFrame(self.card_color)
+        frame.setFixedHeight(120)
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(15, 10, 15, 10)
+        label_title = QLabel(title)
+        label_title.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        label_title.setStyleSheet(f"color: {self.subtext_color};")
+        label_value = QLabel(value)
+        label_value.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label_value.setFont(QFont("Segoe UI", 26, QFont.Weight.Bold))
+        label_value.setStyleSheet(f"color: {self.text_color};")
+        layout.addWidget(label_title)
+        layout.addStretch()
+        layout.addWidget(label_value)
+        return frame
+
+    def create_long_box(self, title, content):
+        frame = HoverFrame(self.card_color)
+        frame.setFixedHeight(100)
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(15, 10, 15, 10)
+        label_title = QLabel(title)
+        label_title.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        label_title.setStyleSheet(f"color: {self.text_color};")
+        label_content = QLabel(content)
+        label_content.setFont(QFont("Segoe UI", 10))
+        label_content.setStyleSheet(f"color: {self.subtext_color};")
+        layout.addWidget(label_title)
+        layout.addWidget(label_content)
+        return frame
+
+    def create_big_box(self, title, placeholder_text):
+        frame = HoverFrame(self.card_color)
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(15, 10, 15, 10)
+        label_title = QLabel(title)
+        label_title.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        label_title.setStyleSheet(f"color: {self.text_color};")
+        label_placeholder = QLabel(placeholder_text)
+        label_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label_placeholder.setStyleSheet(f"color: {self.subtext_color}; font-style: italic;")
+        layout.addWidget(label_title)
+        layout.addStretch()
+        layout.addWidget(label_placeholder)
+        layout.addStretch()
+        return frame
+
+
+# -------------------------------------------------
+    # 🟣 Chart Section
+    # -------------------------------------------------
+    def create_graph_box(self, title=" Change Distribution"):
+        box = HoverFrame(self.card_color)
+        box.setStyleSheet(f"""
+            QFrame {{
+                background-color: #151b54;
+                border-radius: 20px;
+                padding: 15px;
+            }}
+            QLabel {{
                 color: white;
-                border: none;
-                border-radius: 8px;
                 font-weight: bold;
-                font-size: 12px;
-                padding: 8px 16px;
-            }
-            QMessageBox QPushButton:hover { background-color: #5A4FDF; }
-            QMessageBox QPushButton:pressed { background-color: #4A3FCF; }
-        """
-        msg_box.setStyleSheet(light_style)
+                font-size: 16px;
+                margin-bottom: 10px;
+            }}
+        """)
 
-    def show_confirmation(self, message):
-        msg = QMessageBox(self)
-        msg.setWindowTitle("Confirmation")
-        msg.setIcon(QMessageBox.Icon.Information)
-        msg.setText(message)
-        self.apply_theme_to_messagebox(msg)
-        msg.exec()
+        layout = QVBoxLayout(box)
 
-    # ---------------- Main Content ----------------
-    def create_scanne_content(self):
+        # --- Title ---
+        title_label = QLabel(title)
+        layout.addWidget(title_label)
 
-        layout = QVBoxLayout(self.main_content)
-        layout.setContentsMargins(7, 7, 7, 7)
-        layout.setSpacing(5)
+        # --- Data ---
+        stats = get_dashboard_stats()
+        new_files = stats.get("suspects_new", 0)
+        modified_files = stats.get("suspects_modified", 0)
+        deleted_files = stats.get("suspects_deleted", 0)
 
-        # Liste des dossiers/fichiers
-        self.files_tree = QTreeWidget()
-        self.files_tree.setHeaderLabels(["Nom", "Taille (octets)", "Modifié le", "État"])
-        layout.addWidget(self.files_tree)
+        labels = ["New", "Modified", "Deleted"]
+        values = [new_files, modified_files, deleted_files]
+        colors = ["#29ABE2", "#F2C94C", "#EB5757"]  # blue, yellow, red
 
-        # Bouton pour ajouter un dossier
-        add_folder_btn = QPushButton("Ajouter un dossier")
-        add_folder_btn.clicked.connect(self.add_folder)
-        layout.addWidget(add_folder_btn)
+        total = sum(values)
 
-    # ---------------- Charger la liste depuis la base ----------------
-    def load_folders_and_files(self):
-        self.files_tree.clear()
-        try:
-            conn = get_connection()
-            c = conn.cursor()
+        # --- Create Matplotlib Figure ---
+        fig = Figure(figsize=(3, 3), facecolor="#151b54")
+        ax = fig.add_subplot(111)
+        fig.subplots_adjust(0.05, 0.05, 0.95, 0.95)
 
-            try:
-                c.execute("SELECT id, path FROM folders WHERE status='active'")
-                folders = c.fetchall()
-            except Exception as e:
-                self.show_confirmation(f"Erreur lors de la lecture des dossiers : {e}")
-                return
+        if total > 0:
+            # Normal donut chart
+            wedges, texts = ax.pie(
+                values,
+                colors=colors,
+                startangle=90,
+                wedgeprops=dict(width=0.4, edgecolor="#151b54"),
+            )
+            ax.text(
+                0, 0, str(total),
+                ha='center', va='center',
+                color='white', fontsize=20, fontweight='bold'
+            )
+        else:
+            # Placeholder “No Data” circle
+            ax.pie(
+                [1],
+                colors=["#2E3A9D"],
+                startangle=90,
+                wedgeprops=dict(width=0.4, edgecolor="#151b54"),
+            )
+            ax.text(
+                0, 0, "No Data",
+                ha='center', va='center',
+                color='white', fontsize=14, fontweight='bold'
+            )
 
-            for folder_id, folder_path in folders:
-                folder_item = QTreeWidgetItem([folder_path, "", "", "Dossier"])
-                folder_item.setFont(0, QFont("Segoe UI", 10, QFont.Weight.Bold))
-                folder_item.setBackground(0, Qt.GlobalColor.lightGray)
-                self.files_tree.addTopLevelItem(folder_item)
+        ax.set_facecolor("#151b54")
+        ax.axis("equal")  # keep perfect circle
 
-                try:
-                    c.execute("SELECT path, size, modified_time FROM baseline WHERE folder_id=?", (folder_id,))
-                    files = c.fetchall()
-                except Exception as e:
-                    self.show_confirmation(f"Erreur lors de la lecture des fichiers du dossier '{folder_path}': {e}")
-                    continue
+        # --- Embed chart in Qt ---
+        canvas = FigureCanvas(fig)
+        layout.addWidget(canvas)
 
-                for file_path, size, mtime in files:
-                    if os.path.basename(file_path).startswith("~$"):
-                        continue
-                    file_name = os.path.basename(file_path)
-                    file_item = QTreeWidgetItem([file_name, str(size), mtime, "OK"])
-                    file_item.setForeground(3, Qt.GlobalColor.green)
-                    folder_item.addChild(file_item)
+        # Optional: add legend
+        legend = QLabel("🟦 New   🟨 Modified   🟥 Deleted")
+        legend.setStyleSheet("color: white; font-size: 12px; margin-top: 8px;")
+        legend.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(legend)
 
-        except Exception as e:
-            self.show_confirmation(f"Erreur de connexion à la base de données : {e}")
-        finally:
-            try:
-                conn.close()
-            except:
-                pass
+        return box
 
-        self.files_tree.expandAll()
 
-    # ---------------- Ajouter un dossier ----------------
-    def add_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "Choisir un dossier")
-        if folder:
-            count = insert_folder_and_baseline_for_path(folder)
-            self.show_confirmation(f"{count} fichiers ajoutés depuis {folder}")
-            self.load_folders_and_files()
+# === Standalone test ===
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    dashboard = DashboardPage(dark_mode=False)
+    dashboard.resize(1100, 700)
+    dashboard.show()
+    sys.exit(app.exec())
 
-    def clear_main_content(self):
-        """Supprime tous les widgets dans la zone principale (hors sidebar)."""
-        layout = self.main_content.layout()
-        if layout is not None:
-            while layout.count():
-                child = layout.takeAt(0)
-                if child.widget():
-                    child.widget().deleteLater()
 
-    # ---------------- ACTIONS DES BOUTONS ----------------
-    def open_dashboard(self):
-        self.show_confirmation("Dashboard ouvert !")
 
-    def open_scanner(self):
-        self.show_confirmation("Scanner lancé !")
-        self.create_scanne_content()
 
-        self.monitor_thread = MonitorThread()
-        self.monitor_thread.update_signal.connect(lambda msg: self.show_confirmation(msg))
-        self.monitor_thread.start()
 
-        self.load_folders_and_files()
 
-    def open_profile(self):
-        self.show_confirmation("Profil ouvert !")
 
-    def open_identity(self):
-        self.show_confirmation("Identity ouvert !")
 
-    def open_settings(self):
-        self.show_confirmation("Settings ouvert !")
 
-    def open_reports(self):
-        self.show_confirmation("Raports ouverts !")
+def start_monitoring(folder):
+    ensure_backup_dir()
+    event_handler = IntegrityHandler(folder)
+    observer = Observer()
+    observer.schedule(event_handler, folder, recursive=True)
+    observer.start()
+    db.log_event("info", f"Surveillance activée sur {folder} (utilisateur : {current_user})")
+    notify("Surveillance activée", folder)
 
-    def open_help(self):
-        self.show_confirmation("Help ouvert !")
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        observer.stop()
+        notify("Surveillance arrêtée", folder)
+    observer.join()
+
+# ===============================
+# MAIN ENTRY POINT
+# ===============================
+"""if __name__ == "__main__":
+    db.init_db()
+    folder = r"C:Users\DELL\Desktoptest"
+    current_user = input("🔐 Nom d’utilisateur : ").strip().lower()
+    # TODO: you could look up user_id from DB if needed
+    current_user_id = None
+
+    build_baseline_for_folder(folder, current_user)
+    start_monitoring(folder)"""
