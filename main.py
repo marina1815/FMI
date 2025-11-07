@@ -93,7 +93,7 @@ def main_window():
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     try:
-        principal_window = AppWindow()
+        principal_window =  ModernWindow()
         principal_window.show()        # Show first
         center_window(principal_window)  # Then center
         sys.exit(app.exec())

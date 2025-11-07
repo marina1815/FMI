@@ -7,7 +7,7 @@ from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QPixmap, QIcon, QFont
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLabel, QSizePolicy
 from PyQt6.QtCore import Qt, QSize
-from edit_profile import *
+from ui.edit_profile import *
 
 class ProfileMenuMixin:
     def __init__(self):

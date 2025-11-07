@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import QFont, QPixmap, QAction
 from PyQt6.QtCore import Qt
-from ui.gui_home import MainPage
+from ui.main_window import AppWindow
 from core.email_sender import generate_code, send_code_confirmation_email, send_confirmation_email
 from core.user_manager import hash_password, register_user, verify_login, reset_password, load_users, verifier_email, \
     verifier_username
@@ -498,9 +498,15 @@ class ModernWindow(QMainWindow):
         self.setCentralWidget(self.main_page)"""
 
     def open_main_page(self):
-        """Load the main dashboard inside the same window without resizing."""
-        self.container.hide()  # Hide login/signup container
-        self.main_page = MainPage(self.is_dark_theme)
+        """Affiche la page principale et cache le contenu de login."""
+        if hasattr(self, "main_page"):
+            self.main_page.deleteLater()
+
+        # Cacher le conteneur login/signup
+        self.container.setVisible(False)
+
+        # Créer la fenêtre principale (AppWindow)
+        self.main_page = AppWindow()
         self.layout.addWidget(self.main_page)
 
     # =========================

@@ -212,7 +212,7 @@ import threading
 
 
 # === If your FIM file is named differently, adjust the import above ===
-# Example: from fim_core import start_monitoring, build_baseline_for_folder, current_user, current_user_id
+from integrity_monitoring import start_monitoring, build_baseline_for_folder
 
 def select_folder():
     """Ask user to enter folder path (or use default)"""
@@ -227,7 +227,7 @@ def select_folder():
 
 def start_fim(folder, username):
     """Start monitoring thread"""
-    from ui_fim import current_user, current_user_id
+
     globals()['current_user'] = username
     globals()['current_user_id'] = db.get_user_id(username) if hasattr(db, "get_user_id") else None
 
