@@ -9,7 +9,7 @@ from ui.gui_home import MainPage
 from ui.gui_dashboard import DashboardPage
 from ui.gui_scanner import ScanPage
 from ui.profil import ProfileMenuMixin
-
+from ui.custom_title_bar import CustomTitleBar
 
 class AppWindow(QWidget):
     def __init__(self):
@@ -20,41 +20,34 @@ class AppWindow(QWidget):
         self.is_dark_theme = False
         self.sidebar_expanded = False
 
-        # === Initialiser les pages ===
         self.home_page = None
         self.dashboard_page = None
         self.scan_page = None
 
-        # === Layout principal ===
-        self.main_layout = QHBoxLayout(self)
-        self.main_layout.setContentsMargins(0, 0, 0, 0)
-        self.main_layout.setSpacing(0)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
 
-        # === Sidebar ===
-        self.create_sidebar()
+        # === TITLE BAR (en haut) ===
+        self.title_bar = CustomTitleBar(self)
+        main_layout.addWidget(self.title_bar)
 
-        # === Contenu principal (header + stack) ===
         self.content_widget = QWidget()
-        self.content_layout = QVBoxLayout(self.content_widget)
+        self.content_layout = QHBoxLayout(self.content_widget)
         self.content_layout.setContentsMargins(0, 0, 0, 0)
         self.content_layout.setSpacing(0)
 
-        # Header
-        #self.create_header()
-        #self.content_layout.addWidget(self.header)
+        self.create_sidebar()
+        self.content_layout.addWidget(self.sidebar)
 
-        # QStackedWidget
+        # === Zone de contenu (stack) ===
         self.stack = QStackedWidget()
-        self.content_layout.addWidget(self.stack)
+        self.content_layout.addWidget(self.stack, 1)
 
-        # === Ajouter dans le layout principal ===
-        self.main_layout.addWidget(self.sidebar)
-        self.main_layout.addWidget(self.content_widget)
+        main_layout.addWidget(self.content_widget, 1)  # 1 = stretch factor
 
-        # === Taille de fenêtre ===
         self.setMinimumSize(1000, 600)
 
-        # === Charger la page d'accueil par défaut ===
         self.load_home("User")
 
     # =========================================================
@@ -80,7 +73,6 @@ class AppWindow(QWidget):
             self.set_username(self.username)
             """
 
-
     # =========================================================
     # 🔹 Création de la sidebar
     # =========================================================
@@ -95,7 +87,6 @@ class AppWindow(QWidget):
         self.sidebar_layout = QVBoxLayout(self.sidebar)
         self.sidebar_layout.setContentsMargins(self.scale_value(20), 0, 0, 0)
         self.sidebar_layout.setSpacing(self.scale_value(10))
-        #self.create_sidebar_logo()
 
         self.create_sidebar_buttons()
 
@@ -103,7 +94,6 @@ class AppWindow(QWidget):
         self.show_sidebar_text(False)
 
     def create_sidebar_buttons(self):
-        """Crée les boutons de la sidebar avec icônes et texte"""
         self.sidebar_layout.addSpacing(self.scale_value(30, False))
         self.home_btn = self.create_nav_button("img/home.png", "Home", "home")
         self.scan_btn = self.create_nav_button("img/scanner.png", "Scan", "scanner")
@@ -141,7 +131,6 @@ class AppWindow(QWidget):
         return button
 
     def select_button(self, button):
-        """Sélectionne un bouton et désélectionne les autres"""
         all_buttons = [self.home_btn, self.scan_btn,self.dashboard_btn, self.identity_btn,
                        self.settings_btn, self.help_btn, self.about_btn]
 
@@ -362,6 +351,7 @@ class AppWindow(QWidget):
 
         self.animation_min.start()
         self.animation_max.start()
+
     # =========================================================
     # 🔹 Gestion des pages
     # =========================================================
@@ -404,7 +394,6 @@ class AppWindow(QWidget):
         button_id = clicked_button.property("button_id")
         print(f"Bouton cliqué: {button_id}")
 
-        # 🚀 Charger la page correspondante
         if button_id == "home":
             self.load_home(username="User")
         elif button_id == "scan":
@@ -421,7 +410,6 @@ class AppWindow(QWidget):
             print("About page pas encore implémentée")
 
     def scale_value(self, value, is_width=True):
-        """Calcule une valeur d'échelle relative à la taille de l'écran"""
         screen_size = self.screen().availableSize() if self.screen() else QSize(1200, 800)
         base_width = 1200
         base_height = 700
