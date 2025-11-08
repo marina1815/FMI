@@ -9,6 +9,7 @@ from PyQt6.QtGui import QFontDatabase
 from PyQt6.QtWidgets import QGraphicsDropShadowEffect
 from PyQt6.QtGui import QColor
 
+
 class EditProfileWindow(QWidget):
     def __init__(self, username="", email="", password="", is_dark_theme=False, parent=None):
         super().__init__(parent)
@@ -37,7 +38,6 @@ class EditProfileWindow(QWidget):
         layout.setContentsMargins(30, 30, 30, 30)
         layout.setSpacing(20)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-
 
         # --- Image de profil ---
         self.profile_label = QLabel()
@@ -116,7 +116,7 @@ class EditProfileWindow(QWidget):
 
         # --- Boutons ---
         save_btn = QPushButton("Save Changes")
-        save_btn.setIcon(QIcon("img/save.png"))
+        save_btn.setIcon(QIcon("../img/save.png"))
         save_btn.setIconSize(QSize(16, 16))
         save_btn.setFixedHeight(40)
         save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -140,12 +140,21 @@ class EditProfileWindow(QWidget):
         # --- Appliquer le thème ---
         self.apply_theme()
 
-        # --- Appliquer l'effet d'ombre ---
-        shadow_effect = QGraphicsDropShadowEffect()
-        shadow_effect.setBlurRadius(150)
-        shadow_effect.setColor(QColor("#6A76E8"))  # Bleu avec opacité
-        shadow_effect.setOffset(0, 0)
-        self.setGraphicsEffect(shadow_effect)
+        if self.is_dark_theme:
+            # --- Appliquer l'effet d'ombre ---
+            shadow_effect = QGraphicsDropShadowEffect()
+            shadow_effect.setBlurRadius(20)
+            shadow_effect.setColor(QColor("#0E2B51"))  # Bleu avec opacité
+            shadow_effect.setOffset(0, 0)
+            self.setGraphicsEffect(shadow_effect)
+
+        else:
+            # --- Appliquer l'effet d'ombre ---
+            shadow_effect = QGraphicsDropShadowEffect()
+            shadow_effect.setBlurRadius(100)
+            shadow_effect.setColor(QColor("#6A76E8"))  # Bleu avec opacité
+            shadow_effect.setOffset(0, 0)
+            self.setGraphicsEffect(shadow_effect)
 
     def set_rounded_pixmap(self, image_path):
         """Crée et applique un QPixmap circulaire à partir d'une image."""
@@ -229,35 +238,41 @@ class EditProfileWindow(QWidget):
         if self.is_dark_theme:
             self.setStyleSheet("""
                 QWidget {
-                    background-color: #1A202C;
+                    border-radius:30px;
+                    background-color: #141313;
                     color: #E2E8F0;
                 }
+
                 QLineEdit {
-                    background-color: #2D3748;
-                    border: 1px solid #4A5568;
-                    border-radius: 6px;
+
+                    border: 2px solid #0E2B51;
+                    border-radius: 10px;
                     padding-left: 8px;
                     color: #E2E8F0;
-    
+
                 }
+                QLineEdit:focus { background-color: rgba(255,255,255,0.11);border: 3px solid #0E2B51; }
+                   QPushButton#blueButton:hover {
+            background-color: #120A37;
+        }
+
                 QPushButton {
-                    background-color:  #151B54;
+                    background-color:  #0E2B51;
                     color: white;
                     border-radius: 6px;
                     font-weight: bold;
                      border-radius:20px;
                 }
-                QPushButton:hover {
-                    background-color: #3182CE;
-                }
+
                 QLabel {
-                    color: #E2E8F0;
+                    color: #E6E6E6;
                     font-weight: bold;
                       font-family:{self.poppins_font};
                       font-size:15px;
 
                 }
             """)
+
             change_pic_btn_style = """
                            QPushButton {
                                background-color: transparent;
@@ -268,15 +283,32 @@ class EditProfileWindow(QWidget):
                            }
                            QPushButton:hover {
 
+
                            }
                        """
+            cancel_btn_style = """
+                                        QPushButton {
+                                        background-color:  transparent;
+                                        color: white;
+                                        border:3px solid #0E2B51;
+                                        font-weight: bold;
+                                         border-radius:20px;
+                                    }
+                                      QPushButton:hover {
+                                      background-color: rgba(255,255,255,0.11);
+
+                           }
+                                    """
 
             self.change_pic_btn.setStyleSheet(change_pic_btn_style)
+            self.cancel_btn.setStyleSheet(cancel_btn_style)
 
         else:
 
             self.setStyleSheet("""
                 QWidget {
+
+
                     background-color: #F7F7FD;
                     border-radius:30px;
                 }
@@ -284,7 +316,7 @@ class EditProfileWindow(QWidget):
                     background-color: #D6D9F5;
                     color: black;
                     border: 2px solid #3342CC;
-                    border-radius: 6px;
+                    border-radius: 10px;
                     padding-left: 8px;
                 }
                 QPushButton {
@@ -348,7 +380,7 @@ if __name__ == "__main__":
     test_window = EditProfileWindow(
         username="John Doe",
         email="john.doe@example.com",
-        is_dark_theme=False  # Mets True pour tester le thème sombre
+        is_dark_theme=True  # Mets True pour tester le thème sombre
     )
     test_window.show()
 

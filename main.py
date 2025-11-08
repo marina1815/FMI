@@ -11,7 +11,6 @@ from ui.gui_login import ModernWindow
 from ui.main_window import AppWindow
 
 
-
 def center_window(window):
     """Centers a PyQt window on the screen (cross-platform and DPI-aware)."""
     window.show()  # <-- must show before computing geometry
@@ -107,3 +106,4 @@ if __name__ == "__main__":
         msg.setInformativeText(str(e))
         msg.exec()
         print("Erreur critique:", e)
+

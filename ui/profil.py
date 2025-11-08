@@ -1,4 +1,3 @@
-# profil.py
 from PyQt6.QtGui import QFont, QPixmap
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import Qt
@@ -7,7 +6,7 @@ from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QPixmap, QIcon, QFont
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QPushButton, QLabel, QSizePolicy
 from PyQt6.QtCore import Qt, QSize
-from ui.edit_profile import *
+from ui.edit_profile import EditProfileWindow
 
 class ProfileMenuMixin:
     def __init__(self):
@@ -101,18 +100,32 @@ class ProfileMenuMixin:
     def create_profile_dropdown(self):
         """Crée le menu déroulant du profil avec icône et username horizontalement"""
         self.profile_dropdown = QWidget()
-        self.profile_dropdown.setFixedWidth(300)
-        self.profile_dropdown.setFixedHeight(220)
+        self.profile_dropdown.setMaximumWidth(500)
 
-        self.profile_dropdown.setStyleSheet("""
-            QWidget {
-                background-color: white;
-                border: 1px ;
-                border-radius: 8px;
-                padding: 5px;
-                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            }
-        """)
+        self.profile_dropdown.setMaximumHeight(200)
+        if self.is_dark_theme :
+            self.profile_dropdown.setStyleSheet("""
+                      QWidget {
+                          background-color:rgba(255,255,255,05);
+                          border: 3px #0E2B51 ;
+                          border-radius: 10px;
+                          padding: 5px;
+                          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+                      }
+                  """)
+        else :
+            self.profile_dropdown.setStyleSheet("""
+                       QWidget {
+                           background-color: white;
+                           border: 1px ;
+                           border-radius: 10px;
+                           padding: 5px;
+                           box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+                       }
+                   """)
+
+
+
 
         dropdown_layout = QVBoxLayout(self.profile_dropdown)
         dropdown_layout.setContentsMargins(15, 15, 15, 15)
@@ -132,14 +145,15 @@ class ProfileMenuMixin:
 
         # Icône du profil (à gauche)
         profile_icon_label = QLabel()
-        profile_pixmap = QPixmap("img/profile.png").scaled(48, 48, Qt.AspectRatioMode.KeepAspectRatio,
+        profile_pixmap = QPixmap("img/profile.png").scaled(45, 45, Qt.AspectRatioMode.KeepAspectRatio,
                                                               Qt.TransformationMode.SmoothTransformation)
         profile_icon_label.setPixmap(profile_pixmap)
-        profile_icon_label.setFixedSize(48, 48)
+        profile_icon_label.setFixedSize(45, 45)
         profile_icon_label.setStyleSheet("""
             QLabel {
                 border-radius: 24px;  /* 50% de 48px */
                 border: none;
+                padding :3px;
             }
         """)
         # Container pour nom et email (empilés verticalement à droite de l'icône)
@@ -150,12 +164,18 @@ class ProfileMenuMixin:
         # Username (en haut) - utiliser le vrai nom d'utilisateur si disponible
         self.user_name = QLabel(self.username if self.username else " Utilisateur")
         self.user_name.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
-        self.user_name.setStyleSheet("color: #2D3748; margin: 0; padding-left:5px;")
+
 
         # Email (en dessous du username)
         self.user_email = QLabel(self.email if self.email else "john.doe@example.com")  # Vous pouvez modifier ça plus tard
         self.user_email.setFont(QFont("Segoe UI", 8))
-        self.user_email.setStyleSheet("color: #525063;margin: 0; padding-left:1px;font-weight:bold;")
+        if self.is_dark_theme:
+            self.user_name.setStyleSheet("color:#E6E6E6 ; margin: 0; padding-left:3px;background-color:transparent;")
+            self.user_email.setStyleSheet("color: white;margin: 0; padding-left:1px;font-weight:bold;;background-color:transparent;")
+        else :
+            self.user_name.setStyleSheet("color: #2D3748; margin: 0; padding-left:3px;;background-color:transparent;")
+            self.user_email.setStyleSheet("color: #525063;margin: 0; padding-left:1px;font-weight:bold;;background-color:transparent;")
+
         self.user_name.setAlignment(Qt.AlignmentFlag.AlignVCenter)  # ← AJOUT: alignement vertical
 
         name_email_layout.addWidget(self.user_name)
@@ -170,7 +190,7 @@ class ProfileMenuMixin:
         # Séparateur
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setStyleSheet("background-color: #3342CC; margin: 8px 0;font-weight=3;")
+        separator.setStyleSheet("background-color: #0E2B51; margin: 8px 0;font-weight=3;")
         separator.setFixedHeight(2)
 
         # Boutons avec icônes
@@ -178,29 +198,48 @@ class ProfileMenuMixin:
         self.logout_btn = QPushButton()
 
         # Style des boutons avec icônes
-        button_style = """
-            QPushButton {
-                background-color: transparent;
-                color:#141313;
-                font-weight: bold;
-                border: none;
-                padding: 8px 0px 8px 30px;  /* ← Ajouter du padding à gauche pour l'icône */
-                text-align: left;
-                font-size: 13px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #F7FAFC;
-                color: #2D3748;
-            }
-        """
+        if self.is_dark_theme:
+            button_style = """
+                QPushButton {
+                    background-color: transparent;
+                    color:#E6E6E6;
+                    font-weight: bold;
+                    border: none;
+                    padding: 8px 0px 8px 30px;  /* ← Ajouter du padding à gauche pour l'icône */
+                    text-align: left;
+                    font-size: 13px;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #F7FAFC;
+                    color: #2D3748;
+                }
+            """
+        else :
+            button_style = """
+                QPushButton {
+                    background-color: transparent;
+                    color:#141313;
+                    font-weight: bold;
+                    border: none;
+                    padding: 8px 0px 8px 30px;  /* ← Ajouter du padding à gauche pour l'icône */
+                    text-align: left;
+                    font-size: 13px;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #F7FAFC;
+                    color: #2D3748;
+                }
+            """
+
 
         self.edit_profile_btn.setStyleSheet(button_style)
         self.logout_btn.setStyleSheet(button_style)
 
         # Configuration des icônes et textes
-        edit_icon = QIcon("img/edit.png")
-        logout_icon = QIcon("img/logout.png")
+        edit_icon = QIcon("../img/edit.png")
+        logout_icon = QIcon("../img/logout.png")
 
         self.edit_profile_btn.setIcon(edit_icon)
         self.edit_profile_btn.setIconSize(QSize(16, 16))
@@ -231,14 +270,14 @@ class ProfileMenuMixin:
             # Fermer le menu
             self.profile_dropdown.setVisible(False)
             # Changer la flèche vers le bas
-            arrow_pixmap = QPixmap("img/arrow_down.png").scaled(16, 16, Qt.AspectRatioMode.KeepAspectRatio,
+            arrow_pixmap = QPixmap("../img/arrow_down.png").scaled(16, 16, Qt.AspectRatioMode.KeepAspectRatio,
                                                                    Qt.TransformationMode.SmoothTransformation)
             self.arrow_icon.setPixmap(arrow_pixmap)
         else:
             # Ouvrir le menu
             self.profile_dropdown.setVisible(True)
             # Changer la flèche vers le haut
-            arrow_pixmap = QPixmap("img/arrow_up.png").scaled(16, 16, Qt.AspectRatioMode.KeepAspectRatio,
+            arrow_pixmap = QPixmap("../img/arrow_up.png").scaled(16, 16, Qt.AspectRatioMode.KeepAspectRatio,
                                                                  Qt.TransformationMode.SmoothTransformation)
             # --- Correct position calculation ---
             btn_global_pos = self.profile_btn.mapToGlobal(self.profile_btn.rect().bottomRight())
