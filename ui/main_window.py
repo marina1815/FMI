@@ -87,14 +87,14 @@ class AppWindow(QWidget):
         """Crée une sidebar collapsible avec tailles relatives"""
         self.sidebar = QWidget()
         self.sidebar.setMinimumWidth(self.scale_value(100))
-        self.sidebar.setMaximumWidth(self.scale_value(200))
+        self.sidebar.setMaximumWidth(self.scale_value(100))
         self.sidebar.setFixedWidth(self.scale_value(100))
         self.apply_sidebar_style()
 
         self.sidebar_layout = QVBoxLayout(self.sidebar)
         self.sidebar_layout.setContentsMargins(self.scale_value(20), 0, 0, 0)
         self.sidebar_layout.setSpacing(self.scale_value(10))
-        self.create_sidebar_logo()
+        #self.create_sidebar_logo()
 
         self.create_sidebar_buttons()
 
@@ -137,23 +137,6 @@ class AppWindow(QWidget):
         button.clicked.connect(lambda checked, btn=button: self.on_nav_button_clicked(btn))
         button.clicked.connect(self.toggle_sidebar)
         return button
-
-    def create_sidebar_logo(self):
-        logo_container = QWidget()
-        logo_container.setFixedHeight(self.scale_value(50, False))
-        logo_layout = QHBoxLayout(logo_container)
-        logo_layout.setContentsMargins(0, 0, 0, 0)
-
-        logo_size = self.scale_value(25)
-        logo_label = QLabel()
-        logo_label.setFixedSize(logo_size, logo_size)
-        logo_pixmap = QPixmap("img/menu (1).png").scaled(logo_size, logo_size, Qt.AspectRatioMode.KeepAspectRatio,
-                                                         Qt.TransformationMode.SmoothTransformation)
-        logo_label.setPixmap(logo_pixmap)
-        logo_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
-
-        logo_layout.addWidget(logo_label)
-        self.sidebar_layout.addWidget(logo_container)
 
     def select_button(self, button):
         """Sélectionne un bouton et désélectionne les autres"""
@@ -359,20 +342,20 @@ class AppWindow(QWidget):
         self.animation_max = QPropertyAnimation(self.sidebar, b"maximumWidth")
 
         for anim in (self.animation_min, self.animation_max):
-            anim.setDuration(300)
+            anim.setDuration(200)
             anim.setEasingCurve(QEasingCurve.Type.InOutQuart)
 
         if self.sidebar_expanded:
             self.animation_min.setStartValue(self.scale_value(100))
-            self.animation_min.setEndValue(self.scale_value(200))
+            self.animation_min.setEndValue(self.scale_value(150))
             self.animation_max.setStartValue(self.scale_value(100))
-            self.animation_max.setEndValue(self.scale_value(200))
+            self.animation_max.setEndValue(self.scale_value(150))
             self.animation_max.finished.connect(lambda: self.show_sidebar_text(True))
         else:
             self.show_sidebar_text(False)
-            self.animation_min.setStartValue(self.scale_value(200))
+            self.animation_min.setStartValue(self.scale_value(150))
             self.animation_min.setEndValue(self.scale_value(100))
-            self.animation_max.setStartValue(self.scale_value(200))
+            self.animation_max.setStartValue(self.scale_value(150))
             self.animation_max.setEndValue(self.scale_value(100))
 
         self.animation_min.start()
