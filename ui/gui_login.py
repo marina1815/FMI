@@ -186,6 +186,7 @@ class ModernWindow(QMainWindow):
 
 
         elif page == "main":
+            print("🧭 showPage → main")
             self.open_main_page()
             return
 
@@ -458,12 +459,15 @@ class ModernWindow(QMainWindow):
             return
 
         success, message = verify_login(email, password)
+        print("🧩 Résultat login:", success, message)
 
         if success:
             QMessageBox.information(self, "Connexion réussie", message)
+            print("✅ Login OK, chargement de la fenêtre principale...")
             self.showPage("main")
         else:
             QMessageBox.critical(self, "Erreur", message)
+            print("❌ Login échoué :", message)
 
     def handle_forgot_password(self):
         email = self.forgot_email.text().strip()
@@ -498,16 +502,21 @@ class ModernWindow(QMainWindow):
         self.setCentralWidget(self.main_page)"""
 
     def open_main_page(self):
-        """Affiche la page principale et cache le contenu de login."""
-        if hasattr(self, "main_page"):
-            self.main_page.deleteLater()
-
-        # Cacher le conteneur login/signup
-        self.container.setVisible(False)
-
-        # Créer la fenêtre principale (AppWindow)
-        self.main_page = AppWindow()
-        self.layout.addWidget(self.main_page)
+        """Charge la fenêtre principale (sidebar + header + pages)."""
+        print("🧭 Ouverture de l'application principale...")
+        try:
+            self.app_window = AppWindow()
+            print("1 - AppWindow créé avec succès")
+            self.setCentralWidget(self.app_window)
+            print("2 - CentralWidget défini")
+            self.app_window.load_home(username="User")
+            print("3 - Home page chargée")
+            self.showMaximized()
+            print("✅ Fenêtre principale affichée")
+        except Exception as e:
+            print(f"❌ Erreur dans open_main_page: {e}")
+            import traceback
+            traceback.print_exc()
 
     # =========================
     # THEMES
