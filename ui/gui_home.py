@@ -7,7 +7,6 @@ from ui.profil import ProfileMenuMixin
 from PyQt6.QtWidgets import QGraphicsDropShadowEffect
 from PyQt6.QtGui import QColor
 
-
 class ModernSwitch(QCheckBox):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -81,8 +80,6 @@ class ShadowFrame(QFrame):
         shadow_effect.setColor(QColor("#6A76E8"))  # Bleu avec opacité
         shadow_effect.setOffset(0, 0)
         self.setGraphicsEffect(shadow_effect)
-
-
 class MainPage(QWidget, ProfileMenuMixin):
     def __init__(self, is_dark_theme=False, current_style=None, username=None, email=None):
         super().__init__()
@@ -94,11 +91,6 @@ class MainPage(QWidget, ProfileMenuMixin):
         self.scan_frame_visible = False
         self.last_scan_time = "Never"
         self.history_items = []
-
-        # Variables pour les tailles relatives
-        self.screen_size = QApplication.primaryScreen().availableSize()
-        self.base_width = 1400
-        self.base_height = 900
 
         self.apply_window_style()
         if current_style:
@@ -113,6 +105,9 @@ class MainPage(QWidget, ProfileMenuMixin):
         self.content_layout.setContentsMargins(0, 0, 0, 0)
         self.content_layout.setSpacing(0)
 
+        #self.create_sidebar()
+        #self.content_layout.addWidget(self.sidebar)
+
         self.create_main_content()
         self.content_layout.addWidget(self.main_content, 1)
 
@@ -122,20 +117,10 @@ class MainPage(QWidget, ProfileMenuMixin):
         # Initialiser l'historique
         self.update_scan_history_display()
 
-    def scale_value(self, value, is_width=True):
-        if is_width:
-            return int(value * self.screen_size.width() / self.base_width)
-        else:
-            return int(value * self.screen_size.height() / self.base_height)
-
     def create_scan_frame(self):
+        """Crée la frame de scan centrée"""
         self.scan_frame = QFrame(self.main_content)
-
-        # Tailles relatives basées sur la résolution d'écran
-        frame_width = self.scale_value(800)
-        frame_height = self.scale_value(600, False)
-        self.scan_frame.setFixedSize(frame_width, frame_height)
-
+        self.scan_frame.setFixedSize(800, 600)
         self.scan_frame.setStyleSheet("""
             QFrame {
                 background-color: white;
@@ -146,23 +131,20 @@ class MainPage(QWidget, ProfileMenuMixin):
         self.scan_frame.setVisible(False)
 
         scan_layout = QVBoxLayout(self.scan_frame)
-        scan_layout.setContentsMargins(
-            self.scale_value(30),
-            self.scale_value(20, False),
-            self.scale_value(30),
-            self.scale_value(20, False)
-        )
-        scan_layout.setSpacing(self.scale_value(20, False))
+        scan_layout.setContentsMargins(30, 20, 30, 20)
+        scan_layout.setSpacing(20)
 
+        # Widget pour le titre et le bouton retour
         title_widget = QWidget()
         title_widget.setStyleSheet("background-color: transparent;")
         title_layout = QHBoxLayout(title_widget)
         title_layout.setContentsMargins(0, 0, 0, 0)
-        title_layout.setSpacing(self.scale_value(15))
+        title_layout.setSpacing(15)
 
+        # Bouton retour avec icône
         back_btn = QPushButton()
-        back_btn.setFixedSize(self.scale_value(45), self.scale_value(45, False))
-        back_btn.setFont(QFont("Segoe UI", self.scale_value(10)))
+        back_btn.setFixedSize(45, 45)
+        back_btn.setFont(QFont("Segoe UI", 10))
         back_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         back_btn.setStyleSheet("""
             QPushButton {
@@ -178,17 +160,16 @@ class MainPage(QWidget, ProfileMenuMixin):
             }
         """)
 
-        icon_size = self.scale_value(30)
         icon_pixmap = QPixmap("img/back.png").scaled(
-            icon_size, icon_size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+            30, 30, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
         )
         back_btn.setIcon(QIcon(icon_pixmap))
-        back_btn.setIconSize(QSize(icon_size, icon_size))
+        back_btn.setIconSize(QSize(30, 30))
         back_btn.clicked.connect(self.hide_scan_frame)
 
         # Titre
         title_label = QLabel("Select the file/folder to scan")
-        title_label.setFont(QFont("Segoe UI", self.scale_value(16), QFont.Weight.Bold))
+        title_label.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
         title_label.setStyleSheet("color: #151B54; background-color: transparent;border:none;")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -196,13 +177,7 @@ class MainPage(QWidget, ProfileMenuMixin):
         title_layout.addWidget(title_label)
         scan_layout.addWidget(title_widget)
 
-        # Widget pour le champs et le bouton scan
-        path_widget = QWidget()
-        path_widget.setStyleSheet("background-color: transparent;")
-        path_layout = QHBoxLayout(path_widget)
-        path_layout.setContentsMargins(0, 0, 0, 0)
-        path_layout.setSpacing(self.scale_value(15))
-
+        # Champ de chemin (non modifiable)
         self.path_edit = QLineEdit()
         self.path_edit.setReadOnly(True)
         self.path_edit.setPlaceholderText("No selected file/folder")
@@ -216,11 +191,34 @@ class MainPage(QWidget, ProfileMenuMixin):
                 color: #4A5568;
             }
         """)
+        scan_layout.addWidget(self.path_edit)
+
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setSpacing(15)
+
+        self.file_btn = QPushButton("Browse files")
+        self.file_btn.setFixedHeight(45)
+        self.file_btn.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        self.file_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #151B54;
+                color: white;
+                border: none;
+                border-radius: 10px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #120A37;
+            }
+            QPushButton:pressed {
+                background-color: #120A37;
+            }
+        """)
+        self.file_btn.clicked.connect(self.browse_file)
 
         self.folder_btn = QPushButton("Browse folders")
-        self.folder_btn.setFixedHeight(self.scale_value(45, False))
-        self.folder_btn.setMinimumWidth(self.scale_value(150))
-        self.folder_btn.setFont(QFont("Segoe UI", self.scale_value(12), QFont.Weight.Bold))
+        self.folder_btn.setFixedHeight(45)
+        self.folder_btn.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
         self.folder_btn.setStyleSheet("""
             QPushButton {
                 background-color: #151B54;
@@ -238,34 +236,32 @@ class MainPage(QWidget, ProfileMenuMixin):
         """)
         self.folder_btn.clicked.connect(self.browse_folder)
 
-        path_layout.addWidget(self.path_edit)
-        path_layout.addWidget(self.folder_btn)
-        scan_layout.addWidget(path_widget)
+        buttons_layout.addWidget(self.file_btn)
+        buttons_layout.addWidget(self.folder_btn)
+        scan_layout.addLayout(buttons_layout)
 
         # Zone pour l'image et le statut
         self.image_status_widget = QWidget()
         self.image_status_layout = QVBoxLayout(self.image_status_widget)
         self.image_status_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_status_layout.setSpacing(self.scale_value(25, False))
-        self.image_status_widget.setStyleSheet("background-color: transparent;border:none;")
+        self.image_status_layout.setSpacing(25)
 
         self.scan_image_label = QLabel()
         self.scan_image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.scan_image_label.setStyleSheet("background-color: transparent;border:none;")
 
-        image_size = self.scale_value(200)
         scan_pixmap = QPixmap("img/Scan.png")
         if not scan_pixmap.isNull():
-            scan_pixmap = scan_pixmap.scaled(image_size, image_size, Qt.AspectRatioMode.KeepAspectRatio,
+            scan_pixmap = scan_pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio,
                                              Qt.TransformationMode.SmoothTransformation)
             self.scan_image_label.setPixmap(scan_pixmap)
         else:
             self.scan_image_label.setText("🔄")
-            self.scan_image_label.setStyleSheet(f"font-size: {self.scale_value(100)}px;")
+            self.scan_image_label.setStyleSheet("font-size: 100px;")
 
         self.scan_action_btn = QPushButton("Scan")
-        self.scan_action_btn.setFixedSize(self.scale_value(200), self.scale_value(45, False))
-        self.scan_action_btn.setFont(QFont("Segoe UI", self.scale_value(12), QFont.Weight.Bold))
+        self.scan_action_btn.setFixedSize(200, 45)
+        self.scan_action_btn.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
         self.scan_action_btn.setStyleSheet("""
             QPushButton {
                 background-color: #151B54;
@@ -284,24 +280,25 @@ class MainPage(QWidget, ProfileMenuMixin):
         self.scan_action_btn.clicked.connect(self.start_scan)
 
         self.scan_completed_label = QLabel("Scan completed")
-        self.scan_completed_label.setFont(QFont("Segoe UI", self.scale_value(14), QFont.Weight.Bold))
+        self.scan_completed_label.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         self.scan_completed_label.setStyleSheet("color: #059669; background-color: transparent;border:none")
         self.scan_completed_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.scan_completed_label.setVisible(False)
 
+        # Image après scan (cachée au début)
         self.completed_image_label = QLabel()
         self.completed_image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.completed_image_label.setStyleSheet("background-color: transparent;border:none;")
         self.completed_image_label.setVisible(False)
 
-        completed_pixmap = QPixmap("img/scanning-device_2.png")
+        completed_pixmap = QPixmap("img/scanning-device (2).png")
         if not completed_pixmap.isNull():
-            completed_pixmap = completed_pixmap.scaled(image_size, image_size, Qt.AspectRatioMode.KeepAspectRatio,
+            completed_pixmap = completed_pixmap.scaled(200, 200, Qt.AspectRatioMode.KeepAspectRatio,
                                                        Qt.TransformationMode.SmoothTransformation)
             self.completed_image_label.setPixmap(completed_pixmap)
         else:
             self.completed_image_label.setText("✅")
-            self.completed_image_label.setStyleSheet(f"font-size: {self.scale_value(100)}px;")
+            self.completed_image_label.setStyleSheet("font-size: 100px;")
 
         self.image_status_layout.addWidget(self.scan_image_label)
         self.image_status_layout.addWidget(self.scan_action_btn)
@@ -319,9 +316,10 @@ class MainPage(QWidget, ProfileMenuMixin):
             self.scan_frame.raise_()
 
             self.path_edit.clear()
-            self.path_edit.setPlaceholderText("No selected folder")
+            self.path_edit.setPlaceholderText("No selected file/folder")
 
     def hide_scan_frame(self):
+        """Cache la frame de scan et réinitialise l'état"""
         self.scan_frame_visible = False
         self.scan_frame.hide()
 
@@ -331,7 +329,7 @@ class MainPage(QWidget, ProfileMenuMixin):
         self.scan_completed_label.setVisible(False)
 
         self.path_edit.clear()
-        self.path_edit.setPlaceholderText("No selected folder")
+        self.path_edit.setPlaceholderText("No selected file/folder")
 
     def browse_file(self):
         """Ouvre le dialogue de sélection de fichier"""
@@ -358,6 +356,7 @@ class MainPage(QWidget, ProfileMenuMixin):
 
     def add_scan_to_history(self, scan_info):
         """Ajoute une entrée à l'historique des scans"""
+        # Vérifier si le layout d'historique existe
         if not hasattr(self, 'history_content_layout'):
             print("Erreur: history_content_layout non initialisé")
             return
@@ -371,23 +370,18 @@ class MainPage(QWidget, ProfileMenuMixin):
 
         # Créer un widget pour l'entrée d'historique
         history_item = QFrame()
-        history_item.setFixedHeight(self.scale_value(60, False))
+        history_item.setFixedHeight(60)
         history_item.setStyleSheet("""
             QFrame {
-                background-color: #151B54;
+                background-color: #525063;
                 border-radius: 10px;
                 border: 1px solid #3342CC;
             }
         """)
 
         item_layout = QHBoxLayout(history_item)
-        item_layout.setContentsMargins(
-            self.scale_value(15),
-            self.scale_value(10, False),
-            self.scale_value(15),
-            self.scale_value(10, False)
-        )
-        item_layout.setSpacing(self.scale_value(15))
+        item_layout.setContentsMargins(15, 10, 15, 10)
+        item_layout.setSpacing(15)
 
         # Icône de statut
         status_icon = QLabel()
@@ -418,19 +412,19 @@ class MainPage(QWidget, ProfileMenuMixin):
         info_widget = QWidget()
         info_layout = QVBoxLayout(info_widget)
         info_layout.setContentsMargins(0, 0, 0, 0)
-        info_layout.setSpacing(self.scale_value(4, False))
+        info_layout.setSpacing(4)
 
         # Tronquer le chemin si trop long
         path = scan_info.get("path", "Unknown path")
         display_path = path if len(path) < 60 else path[:37] + "..."
 
         path_label = QLabel(display_path)
-        path_label.setFont(QFont("Segoe UI", self.scale_value(10), QFont.Weight.Medium))
+        path_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Medium))
         path_label.setStyleSheet("color: white; background-color: transparent;border:none;")
         path_label.setToolTip(path)  # Tooltip avec le chemin complet
 
         time_label = QLabel(scan_info.get("time", "Unknown time"))
-        time_label.setFont(QFont("Segoe UI", self.scale_value(9)))
+        time_label.setFont(QFont("Segoe UI", 9))
         time_label.setStyleSheet("color: rgba(255, 255, 255, 0.7); background-color: transparent;border:none;")
 
         info_layout.addWidget(path_label)
@@ -438,7 +432,7 @@ class MainPage(QWidget, ProfileMenuMixin):
 
         # Résultat
         result_label = QLabel(scan_info.get("result", "No threats"))
-        result_label.setFont(QFont("Segoe UI", self.scale_value(10), QFont.Weight.Medium))
+        result_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Medium))
         if scan_info.get("threats_found", 0) > 0:
             result_label.setStyleSheet("color: #EF4444; background-color: transparent;border:none;")
         else:
@@ -474,7 +468,7 @@ class MainPage(QWidget, ProfileMenuMixin):
         if len(self.history_items) == 0:
             no_history_label = QLabel("No scan history available")
             no_history_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            no_history_label.setFont(QFont("Segoe UI", self.scale_value(11)))
+            no_history_label.setFont(QFont("Segoe UI", 11))
             no_history_label.setStyleSheet("""
                 color: #525063; 
                 background-color: transparent; 
@@ -482,7 +476,7 @@ class MainPage(QWidget, ProfileMenuMixin):
                 border :1px solid #3342CC;
                 font-weight:bold;
             """)
-            no_history_label.setMinimumHeight(self.scale_value(100, False))
+            no_history_label.setMinimumHeight(100)
             self.history_content_layout.addWidget(no_history_label)
 
     def start_scan(self):
@@ -539,8 +533,63 @@ class MainPage(QWidget, ProfileMenuMixin):
 
         self.scan_frame.move(x, y)
 
+    def create_sidebar(self):
+        """Crée une sidebar collapsible"""
+        self.sidebar = QWidget()
+        self.sidebar.setMinimumWidth(100)
+        self.sidebar.setMaximumWidth(200)
+        self.sidebar.setFixedWidth(100)
+        self.apply_sidebar_style()
+
+        self.sidebar_layout = QVBoxLayout(self.sidebar)
+        self.sidebar_layout.setContentsMargins(30, 0, 0, 0)
+        self.sidebar_layout.setSpacing(10)
+        self.create_sidebar_logo()
+
+        self.create_sidebar_buttons()
+
+        self.sidebar_layout.addStretch()
+        self.show_sidebar_text(False)
+
+    def create_sidebar_buttons(self):
+        """Crée les boutons de la sidebar avec icônes et texte"""
+        self.sidebar_layout.addSpacing(30)
+        self.scan_btn = self.create_nav_button("img/scanner.png", "Home", "scanner")
+        self.dashboard_btn = self.create_nav_button("img/dashboard.png", "Dashboard", "dashboard")
+
+        self.identity_btn = self.create_nav_button("img/identity.png", "Identity", "identity")
+
+        for btn in [self.scan_btn,self.dashboard_btn,  self.identity_btn]:
+            self.sidebar_layout.addWidget(btn)
+
+        self.sidebar_layout.addSpacing(380)
+
+        self.settings_btn = self.create_nav_button("img/setting.png", "Settings", "setting")
+        self.help_btn = self.create_nav_button("img/question.png", "Help", "question")
+        self.about_btn = self.create_nav_button("img/about.png", "About", "about")
+
+        for btn in [self.settings_btn, self.help_btn, self.about_btn]:
+            self.sidebar_layout.addWidget(btn)
+
+        self.select_button(self.scan_btn)
+
+    def create_nav_button(self, icon_path, tooltip="", button_id=""):
+        """Crée un bouton de navigation avec icône seulement"""
+        button = QPushButton()
+        button.setFixedHeight(45)
+        button.setFont(QFont("Segoe UI", 10))
+        button.setProperty("button_id", button_id)
+
+        icon_pixmap = QPixmap(icon_path).scaled(30, 30, Qt.AspectRatioMode.KeepAspectRatio,
+                                                Qt.TransformationMode.SmoothTransformation)
+        button.setIcon(QIcon(icon_pixmap))
+        button.setIconSize(QSize(30, 30))
+        button.clicked.connect(lambda checked, btn=button: self.on_nav_button_clicked(btn))
+        button.clicked.connect(self.toggle_sidebar)
+        return button
+
     def create_main_content(self):
-        """Crée la zone de contenu principale avec des tailles relatives"""
+        """Crée la zone de contenu principale"""
         self.main_content = QWidget()
         self.apply_main_content_style()
 
@@ -549,14 +598,9 @@ class MainPage(QWidget, ProfileMenuMixin):
         main_layout.setSpacing(0)
 
         header_widget = QWidget()
-        header_widget.setFixedHeight(self.scale_value(60, False))
+        header_widget.setFixedHeight(60)
         header_layout = QHBoxLayout(header_widget)
-        header_layout.setContentsMargins(
-            self.scale_value(20),
-            self.scale_value(10, False),
-            self.scale_value(20),
-            self.scale_value(10, False)
-        )
+        header_layout.setContentsMargins(20, 10, 20, 10)
         header_layout.addStretch()
 
         profile_menu = self.create_profile_menu()
@@ -572,38 +616,32 @@ class MainPage(QWidget, ProfileMenuMixin):
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
         content_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        content_layout.setSpacing(self.scale_value(40, False))
-        content_layout.setContentsMargins(
-            self.scale_value(40),
-            self.scale_value(20, False),
-            self.scale_value(40),
-            self.scale_value(20, False)
-        )
+        content_layout.setSpacing(40)
+        content_layout.setContentsMargins(40, 20, 40, 20)
 
         icon_text_widget = QWidget()
         icon_text_layout = QHBoxLayout(icon_text_widget)
         icon_text_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_text_layout.setSpacing(self.scale_value(20))
+        icon_text_layout.setSpacing(20)
 
         icon_label = QLabel()
-        icon_size = self.scale_value(50)
-        icon_pixmap = QPixmap("img/evaluation.png")
+        icon_pixmap = QPixmap("img/monitor.png")
         if not icon_pixmap.isNull():
-            icon_pixmap = icon_pixmap.scaled(icon_size, icon_size, Qt.AspectRatioMode.KeepAspectRatio,
+            icon_pixmap = icon_pixmap.scaled(50, 50, Qt.AspectRatioMode.KeepAspectRatio,
                                              Qt.TransformationMode.SmoothTransformation)
             icon_label.setPixmap(icon_pixmap)
         else:
             icon_label.setText("🛡️")
-            icon_label.setStyleSheet(f"font-size: {self.scale_value(32)}px;")
+            icon_label.setStyleSheet("font-size: 32px;")
 
         # Ajouter le texte
         text_label = QLabel(
-            "Welcome to FortiFile ,where you can monitor file changes and secure your critical data in real-time.")
-        text_label.setFont(QFont("Segoe UI", self.scale_value(16), QFont.Weight.Bold))
+            "Monitor file changes, detect unauthorized modifications, and secure your critical data in real-time.")
+        text_label.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         text_label.setWordWrap(True)
-        text_label.setStyleSheet("color: #151B54;")
-        text_label.setMinimumWidth(self.scale_value(600))
+        text_label.setStyleSheet("color: #2D3748;")
+        text_label.setMinimumWidth(600)
 
         icon_text_layout.addWidget(icon_label)
         icon_text_layout.addWidget(text_label)
@@ -613,57 +651,50 @@ class MainPage(QWidget, ProfileMenuMixin):
         main_sections_widget = QWidget()
         main_sections_layout = QHBoxLayout(main_sections_widget)
         main_sections_layout.setContentsMargins(0, 0, 0, 0)
-        main_sections_layout.setSpacing(self.scale_value(20))
+        main_sections_layout.setSpacing(20)
 
         # Colonne de gauche
         left_column_widget = QWidget()
         left_column_layout = QVBoxLayout(left_column_widget)
         left_column_layout.setContentsMargins(0, 0, 0, 0)
-        left_column_layout.setSpacing(self.scale_value(20, False))
+        left_column_layout.setSpacing(20)
 
         # File/folder selection
         file_frame = ShadowFrame()
         file_frame.apply_shadow_style()
-        file_frame.setMinimumHeight(self.scale_value(120, False))
+        file_frame.setFixedSize(600, 120)
+
 
         frame_layout = QHBoxLayout(file_frame)
-        frame_layout.setContentsMargins(
-            self.scale_value(30),
-            self.scale_value(20, False),
-            self.scale_value(30),
-            self.scale_value(20, False)
-        )
-        frame_layout.setSpacing(self.scale_value(20))
+        frame_layout.setContentsMargins(30, 20, 30, 20)
+        frame_layout.setSpacing(20)
 
         scan_icon_label = QLabel()
         scan_icon_label.setStyleSheet("background-color: transparent; border: none;")
-        scan_icon_size = self.scale_value(30)
         scan_icon_pixmap = QPixmap("img/quickScan.png")
         if not scan_icon_pixmap.isNull():
-            scan_icon_pixmap = scan_icon_pixmap.scaled(scan_icon_size, scan_icon_size,
-                                                       Qt.AspectRatioMode.KeepAspectRatio,
+            scan_icon_pixmap = scan_icon_pixmap.scaled(30, 30, Qt.AspectRatioMode.KeepAspectRatio,
                                                        Qt.TransformationMode.SmoothTransformation)
             scan_icon_label.setPixmap(scan_icon_pixmap)
         else:
             scan_icon_label.setText("🔍")
-            scan_icon_label.setStyleSheet(
-                f"font-size: {self.scale_value(24)}px; color: white;border:none;background-color:transparent;")
+            scan_icon_label.setStyleSheet("font-size: 24px; color: white;border:none;background-color:transparent;")
 
         title_widget = QWidget()
         title_widget.setStyleSheet("background-color: transparent;")
         title_layout = QVBoxLayout(title_widget)
         title_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        title_layout.setSpacing(self.scale_value(5, False))
+        title_layout.setSpacing(5)
         title_layout.setContentsMargins(0, 0, 0, 0)
 
         scan_title = QLabel("Quick Scan")
-        scan_title.setFont(QFont("Segoe UI", self.scale_value(14), QFont.Weight.Bold))
+        scan_title.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         scan_title.setAlignment(Qt.AlignmentFlag.AlignLeft)
         scan_title.setStyleSheet("color: black; background-color: transparent; padding: 0; margin: 0;border:none;")
 
         lastScan = QLabel("Last Scan: Never")
         lastScan.setObjectName("last_scan_label")
-        lastScan.setFont(QFont("Segoe UI", self.scale_value(10), QFont.Weight.Medium))
+        lastScan.setFont(QFont("Segoe UI", 10, QFont.Weight.Medium))
         lastScan.setAlignment(Qt.AlignmentFlag.AlignLeft)
         lastScan.setStyleSheet(
             "color: #525063; background-color: transparent; padding: 0; margin: 0;border:none;font-weight:bold;")
@@ -673,8 +704,8 @@ class MainPage(QWidget, ProfileMenuMixin):
 
         # Bouton Scan
         scan_btn = QPushButton("Scan Now")
-        scan_btn.setFixedSize(self.scale_value(120), self.scale_value(45, False))
-        scan_btn.setFont(QFont("Segoe UI", self.scale_value(12), QFont.Weight.Bold))
+        scan_btn.setFixedSize(120, 45)
+        scan_btn.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
         scan_btn.setStyleSheet("""
             QPushButton {
                 background-color: #10B981;
@@ -695,46 +726,41 @@ class MainPage(QWidget, ProfileMenuMixin):
         frame_layout.addWidget(scan_btn)
 
         # Auto scan frame
+
         Autoscan_frame = ShadowFrame()
         Autoscan_frame.apply_shadow_style()
-        Autoscan_frame.setMinimumHeight(self.scale_value(120, False))
+        Autoscan_frame.setFixedSize(600, 120)
+
 
         Autoscan_layout = QHBoxLayout(Autoscan_frame)
-        Autoscan_layout.setContentsMargins(
-            self.scale_value(30),
-            self.scale_value(20, False),
-            self.scale_value(30),
-            self.scale_value(20, False)
-        )
-        Autoscan_layout.setSpacing(self.scale_value(20))
+        Autoscan_layout.setContentsMargins(30, 20, 30, 20)
+        Autoscan_layout.setSpacing(20)
 
         Autoscan_label = QLabel()
         Autoscan_label.setStyleSheet("background-color: transparent; border: none;")
         Autoscan_icon_pixmap = QPixmap("img/encrypted.png")
         if not Autoscan_icon_pixmap.isNull():
-            Autoscan_icon_pixmap = Autoscan_icon_pixmap.scaled(scan_icon_size, scan_icon_size,
-                                                               Qt.AspectRatioMode.KeepAspectRatio,
+            Autoscan_icon_pixmap = Autoscan_icon_pixmap.scaled(30, 30, Qt.AspectRatioMode.KeepAspectRatio,
                                                                Qt.TransformationMode.SmoothTransformation)
             Autoscan_label.setPixmap(Autoscan_icon_pixmap)
         else:
             Autoscan_label.setText("🔍")
-            Autoscan_label.setStyleSheet(
-                f"font-size: {self.scale_value(24)}px; color: white;border:none;background-color:transparent;")
+            Autoscan_label.setStyleSheet("font-size: 24px; color: white;border:none;background-color:transparent;")
 
         Autoscan_widget = QWidget()
         Autoscan_widget.setStyleSheet("background-color: transparent;")
         Autoscan_title_layout = QVBoxLayout(Autoscan_widget)
         Autoscan_title_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        Autoscan_title_layout.setSpacing(self.scale_value(5, False))
+        Autoscan_title_layout.setSpacing(5)
         Autoscan_title_layout.setContentsMargins(0, 0, 0, 0)
 
         Autoscan_title = QLabel("Auto scan")
-        Autoscan_title.setFont(QFont("Segoe UI", self.scale_value(14), QFont.Weight.Bold))
+        Autoscan_title.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         Autoscan_title.setAlignment(Qt.AlignmentFlag.AlignLeft)
         Autoscan_title.setStyleSheet("color: black; background-color: transparent; padding: 0; margin: 0;border:none;")
 
         Autoscan_lastScan = QLabel("Scan at Windows startup")
-        Autoscan_lastScan.setFont(QFont("Segoe UI", self.scale_value(10), QFont.Weight.Medium))
+        Autoscan_lastScan.setFont(QFont("Segoe UI", 10, QFont.Weight.Medium))
         Autoscan_lastScan.setAlignment(Qt.AlignmentFlag.AlignLeft)
         Autoscan_lastScan.setStyleSheet(
             "color: #525063; background-color: transparent; padding: 0; margin: 0;border:none;;font-weight:bold;")
@@ -754,40 +780,34 @@ class MainPage(QWidget, ProfileMenuMixin):
         # Frame de l'historique des scans
         history_frame = ShadowFrame()
         history_frame.apply_shadow_style()
-        history_frame.setMinimumHeight(self.scale_value(300, False))
+        history_frame.setFixedSize(600, 300)
+
 
         history_layout = QVBoxLayout(history_frame)
-        history_layout.setContentsMargins(
-            self.scale_value(30),
-            self.scale_value(20, False),
-            self.scale_value(30),
-            self.scale_value(20, False)
-        )
-        history_layout.setSpacing(self.scale_value(20, False))
+        history_layout.setContentsMargins(30, 20, 30, 20)
+        history_layout.setSpacing(20)
 
         # Widget pour contenir l'icône et le titre de l'historique
         history_icon_title_widget = QWidget()
         history_icon_title_widget.setStyleSheet("background-color: transparent;")
         history_icon_title_layout = QHBoxLayout(history_icon_title_widget)
         history_icon_title_layout.setContentsMargins(0, 0, 0, 0)
-        history_icon_title_layout.setSpacing(self.scale_value(15))
+        history_icon_title_layout.setSpacing(15)
         history_icon_title_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
         history_label = QLabel()
         history_label.setStyleSheet("background-color: transparent; border: none;")
         history_icon_pixmap = QPixmap("img/history.png")
         if not history_icon_pixmap.isNull():
-            history_icon_pixmap = history_icon_pixmap.scaled(scan_icon_size, scan_icon_size,
-                                                             Qt.AspectRatioMode.KeepAspectRatio,
+            history_icon_pixmap = history_icon_pixmap.scaled(30, 30, Qt.AspectRatioMode.KeepAspectRatio,
                                                              Qt.TransformationMode.SmoothTransformation)
             history_label.setPixmap(history_icon_pixmap)
         else:
             history_label.setText("📋")
-            history_label.setStyleSheet(
-                f"font-size: {self.scale_value(24)}px; color: white;border:none;background-color:transparent;")
+            history_label.setStyleSheet("font-size: 24px; color: white;border:none;background-color:transparent;")
 
         historyTitle = QLabel("Scan History")
-        historyTitle.setFont(QFont("Segoe UI", self.scale_value(14), QFont.Weight.Bold))
+        historyTitle.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         historyTitle.setAlignment(Qt.AlignmentFlag.AlignLeft)
         historyTitle.setStyleSheet("color: black; background-color: transparent; padding: 0; margin: 0; border: none;")
 
@@ -830,13 +850,8 @@ class MainPage(QWidget, ProfileMenuMixin):
         self.history_content.setStyleSheet("background-color: transparent;")
         self.history_content_layout = QVBoxLayout(self.history_content)
         self.history_content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.history_content_layout.setSpacing(self.scale_value(8, False))
-        self.history_content_layout.setContentsMargins(
-            self.scale_value(2),
-            self.scale_value(2, False),
-            self.scale_value(8),
-            self.scale_value(2, False)
-        )
+        self.history_content_layout.setSpacing(8)
+        self.history_content_layout.setContentsMargins(2, 2, 8, 2)
 
         self.history_scroll_area.setWidget(self.history_content)
 
@@ -851,40 +866,34 @@ class MainPage(QWidget, ProfileMenuMixin):
         # Colonne de droite - Stats
         stats_frame = ShadowFrame()
         stats_frame.apply_shadow_style()
-        stats_frame.setMinimumHeight(self.scale_value(500, False))
+        stats_frame.setFixedSize(600, 500)
+
 
         stats_layout = QVBoxLayout(stats_frame)
-        stats_layout.setContentsMargins(
-            self.scale_value(30),
-            self.scale_value(20, False),
-            self.scale_value(30),
-            self.scale_value(20, False)
-        )
-        stats_layout.setSpacing(self.scale_value(20, False))
+        stats_layout.setContentsMargins(30, 20, 30, 20)
+        stats_layout.setSpacing(20)
 
         # Widget pour contenir l'icône et le titre (sur la même ligne)
         icon_title_widget = QWidget()
         icon_title_widget.setStyleSheet("background-color: transparent;")
         icon_title_layout = QHBoxLayout(icon_title_widget)
         icon_title_layout.setContentsMargins(0, 0, 0, 0)
-        icon_title_layout.setSpacing(self.scale_value(15))
+        icon_title_layout.setSpacing(15)
         icon_title_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
         stats_label = QLabel()
         stats_label.setStyleSheet("background-color: transparent; border: none;")
-        stats_icon_pixmap = QPixmap("img/file overview.png")
+        stats_icon_pixmap = QPixmap("img/evaluation.png")
         if not stats_icon_pixmap.isNull():
-            stats_icon_pixmap = stats_icon_pixmap.scaled(scan_icon_size, scan_icon_size,
-                                                         Qt.AspectRatioMode.KeepAspectRatio,
+            stats_icon_pixmap = stats_icon_pixmap.scaled(30, 30, Qt.AspectRatioMode.KeepAspectRatio,
                                                          Qt.TransformationMode.SmoothTransformation)
             stats_label.setPixmap(stats_icon_pixmap)
         else:
             stats_label.setText("📊")
-            stats_label.setStyleSheet(
-                f"font-size: {self.scale_value(24)}px; color: white;border:none;background-color:transparent;")
+            stats_label.setStyleSheet("font-size: 24px; color: white;border:none;background-color:transparent;")
 
         statsTitle = QLabel("File status overview")
-        statsTitle.setFont(QFont("Segoe UI", self.scale_value(14), QFont.Weight.Bold))
+        statsTitle.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         statsTitle.setAlignment(Qt.AlignmentFlag.AlignLeft)
         statsTitle.setStyleSheet("color: black; background-color: transparent; padding: 0; margin: 0; border: none;")
 
@@ -901,6 +910,45 @@ class MainPage(QWidget, ProfileMenuMixin):
         content_layout.addWidget(main_sections_widget)
         main_layout.addWidget(content_widget, 1)
 
+    """ 
+    def mousePressEvent(self, event):
+        Ferme le menu profil si on clique en dehors
+        if (self.profile_dropdown.isVisible() and
+                not self.profile_dropdown.geometry().contains(event.globalPos()) and
+                not self.profile_btn.geometry().contains(event.globalPos())):
+            self.profile_dropdown.setVisible(False)
+            arrow_pixmap = QPixmap("img/arrow_down.png").scaled(12, 12, Qt.AspectRatioMode.KeepAspectRatio,
+                                                                   Qt.TransformationMode.SmoothTransformation)
+            self.arrow_icon.setPixmap(arrow_pixmap)
+
+        super().mousePressEvent(event)"""
+
+    def toggle_sidebar(self):
+        self.sidebar_expanded = not self.sidebar_expanded
+
+        self.animation_min = QPropertyAnimation(self.sidebar, b"minimumWidth")
+        self.animation_max = QPropertyAnimation(self.sidebar, b"maximumWidth")
+
+        for anim in (self.animation_min, self.animation_max):
+            anim.setDuration(300)
+            anim.setEasingCurve(QEasingCurve.Type.InOutQuart)
+
+        if self.sidebar_expanded:
+            self.animation_min.setStartValue(100)
+            self.animation_min.setEndValue(200)
+            self.animation_max.setStartValue(100)
+            self.animation_max.setEndValue(200)
+            self.animation_max.finished.connect(lambda: self.show_sidebar_text(True))
+        else:
+            self.show_sidebar_text(False)
+            self.animation_min.setStartValue(200)
+            self.animation_min.setEndValue(100)
+            self.animation_max.setStartValue(200)
+            self.animation_max.setEndValue(100)
+
+        self.animation_min.start()
+        self.animation_max.start()
+
     def on_auto_scan_toggled(self, checked):
         """Gère le changement d'état du switch Auto Scan"""
         if checked:
@@ -910,6 +958,230 @@ class MainPage(QWidget, ProfileMenuMixin):
             print("Auto scan désactivé - Analyse au démarrage de Windows désactivée")
             # Ici vous pouvez ajouter la logique pour désactiver l'analyse au démarrage
 
+    def create_sidebar_logo(self):
+        logo_container = QWidget()
+        logo_container.setFixedHeight(50)
+        logo_layout = QHBoxLayout(logo_container)
+        logo_layout.setContentsMargins(0, 0, 0, 0)
+
+        logo_label = QLabel()
+        logo_label.setFixedSize(40, 40)
+        logo_pixmap = QPixmap("img/sign.png").scaled(40, 40, Qt.AspectRatioMode.KeepAspectRatio,
+                                                        Qt.TransformationMode.SmoothTransformation)
+        logo_label.setPixmap(logo_pixmap)
+        logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.logo_text = QLabel("FortiFile")
+        self.logo_text.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
+        self.logo_text.setStyleSheet("color: white;border:none;")
+        self.logo_text.setVisible(False)
+
+        logo_layout.addWidget(logo_label)
+        logo_layout.addWidget(self.logo_text)
+        self.sidebar_layout.addWidget(logo_container)
+
+    def select_button(self, button):
+        """Sélectionne un bouton et désélectionne les autres"""
+        all_buttons = [self.scan_btn,self.dashboard_btn,  self.identity_btn,
+                       self.settings_btn, self.help_btn, self.about_btn]
+
+        for btn in all_buttons:
+            self.deselect_button(btn)
+
+        if self.is_dark_theme:
+            button.setStyleSheet("""
+                QPushButton {
+                    background-color:#525063;
+                    color: #0D0422;
+                    border: none;
+                    border-radius: 5px;
+                    font-weight: bold;
+                    text-align: left;
+                    padding: 10px 5px;
+                    font-size: 16px;
+                    width: 200px;
+                    border-left: 4px solid #FFFFFF;
+                    border-top-left-radius: 20px;
+                    border-bottom-left-radius: 20px;
+                    border-top-right-radius: 0px;
+                    border-bottom-right-radius: 0px;
+                    max-width: 220px;
+                }
+            """)
+        else:
+            button.setStyleSheet("""
+                QPushButton {
+                    background-color:#DFDFED;
+                    color: #151B54;
+                    border: none;
+                    border-radius: 5px;
+                    font-weight: bold;
+                    text-align: left;
+                    padding: 10px 5px;
+                    font-size: 16px;
+                    width: 200px;
+                    border-left: 4px solid #FFFFFF;
+                    border-top-left-radius: 20px;
+                    border-bottom-left-radius: 20px;
+                    border-top-right-radius: 0px;
+                    border-bottom-right-radius: 0px;
+                    max-width: 220px;
+                }
+            """)
+
+        button_id = button.property("button_id")
+        colored_icon_path = f"img/{button_id}_selec.png"
+
+        colored_pixmap = QPixmap(colored_icon_path)
+        if not colored_pixmap.isNull():
+            colored_pixmap = colored_pixmap.scaled(24, 24, Qt.AspectRatioMode.KeepAspectRatio,
+                                                   Qt.TransformationMode.SmoothTransformation)
+            button.setIcon(QIcon(colored_pixmap))
+        else:
+            normal_icon_path = f"img/{button_id}.png"
+            normal_pixmap = QPixmap(normal_icon_path).scaled(24, 24, Qt.AspectRatioMode.KeepAspectRatio,
+                                                             Qt.TransformationMode.SmoothTransformation)
+            button.setIcon(QIcon(normal_pixmap))
+
+        self.current_selected_button = button
+
+    def deselect_button(self, button):
+        button.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #FFFFFF;
+                border: none;
+                border-radius: 5px;
+                font-weight: bold;
+                text-align: left;
+                padding: 10px 5px;
+                min-width: 100px;
+                width: 200px;
+                max-width: 200px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: rgba(255, 255, 255, 0.1);
+                font-size: 14px;
+            }
+        """)
+
+        button_id = button.property("button_id")
+        normal_icon_path = f"img/{button_id}.png"
+
+        normal_pixmap = QPixmap(normal_icon_path)
+        if not normal_pixmap.isNull():
+            normal_pixmap = normal_pixmap.scaled(24, 24, Qt.AspectRatioMode.KeepAspectRatio,
+                                                 Qt.TransformationMode.SmoothTransformation)
+            button.setIcon(QIcon(normal_pixmap))
+
+    def on_nav_button_clicked(self, clicked_button):
+        """Gère le clic sur un bouton de navigation"""
+        self.select_button(clicked_button)
+        button_id = clicked_button.property("button_id")
+        print(f"Bouton cliqué: {button_id}")
+
+    def show_sidebar_text(self, show):
+        try:
+            buttons = [self.scan_btn,self.dashboard_btn,  self.identity_btn,
+                       self.settings_btn, self.help_btn, self.about_btn]
+            icons = ["img/scanner.png","img/dashboard.png",  "img/identity.png",
+                     "img/setting.png", "img/question.png", "img/about.png"]
+            active_icons = ["img/scanner_selec.png", "img/dashboard_selec.png", "img/identity_selec.png",
+                            "img/setting_selec.png", "img/question_selec.png", "img/about_selec.png"]
+            texts = [" Home"," Dashboard",  " Identity", " Settings", " Help", " About"]
+
+            self.logo_text.setVisible(show)
+
+            for i, btn in enumerate(buttons):
+                if show:
+                    if hasattr(self, 'current_selected_button') and btn == self.current_selected_button:
+                        icon_path = active_icons[i]
+                    else:
+                        icon_path = icons[i]
+
+                    icon_pixmap = QPixmap(icon_path).scaled(20, 20, Qt.AspectRatioMode.KeepAspectRatio,
+                                                            Qt.TransformationMode.SmoothTransformation)
+                    btn.setIcon(QIcon(icon_pixmap))
+                    btn.setText(texts[i])
+                    btn.setToolTip("")
+
+                    if hasattr(self, 'current_selected_button') and btn == self.current_selected_button:
+                        self.select_button(btn)
+                else:
+                    if hasattr(self, 'current_selected_button') and btn == self.current_selected_button:
+                        icon_path = active_icons[i]
+                    else:
+                        icon_path = icons[i]
+
+                    icon_pixmap = QPixmap(icon_path).scaled(24, 24, Qt.AspectRatioMode.KeepAspectRatio,
+                                                            Qt.TransformationMode.SmoothTransformation)
+                    btn.setIcon(QIcon(icon_pixmap))
+                    btn.setText("")
+                    btn.setToolTip(texts[i].strip())
+
+                    if hasattr(self, 'current_selected_button') and btn == self.current_selected_button:
+                        self.select_button(btn)
+
+        except Exception as e:
+            print(f"Error in show_sidebar_text: {e}")
+
+    def apply_sidebar_style(self):
+        if self.is_dark_theme:
+            self.sidebar.setStyleSheet("""
+                QWidget {
+                    background-color: rgba(37, 37, 55, 0.7);
+                    border-right: 1px solid #4A5568;
+                    border-radius: 25px;
+                }
+                QPushButton {
+                    background-color: transparent;
+                    color: #FFFFFF;
+                    border: none;
+                    border-radius: 5px;
+                    text-align: left;
+                    padding: 10px;
+                    padding: 10px 5px;
+                    min-width: 40px;
+                }
+                QPushButton:hover {
+                    background-color: #2D3748;
+                }
+                QPushButton:pressed {
+                    background-color: #9F7AEA;
+                    color: #1A202C;
+                }
+            """)
+        else:
+            self.sidebar.setStyleSheet("""
+                QWidget {
+                    background-color: #151B54;
+                    border-right: 1px solid #5A4FDF;
+                    border-radius: 25px;
+                }
+                QLabel {
+                    color: #FFFFFF;
+                    background-color: transparent;
+                    font-weight: bold;
+                }
+                QPushButton {
+                    background-color: transparent;
+                    color: #FFFFFF;
+                    border: none;
+                    border-radius: 5px;
+                    text-align: left;
+                    padding: 10px;
+                    padding: 10px 5px;
+                    min-width: 50px;
+                }
+                QPushButton:hover {
+                    background-color: #5A4FDF;
+                }
+                QPushButton:pressed {
+                    background-color: #FFFFFF;
+                    color: #6A5FF5;
+                }
+            """)
 
     def apply_main_content_style(self):
         if self.is_dark_theme:
@@ -972,32 +1244,6 @@ class MainPage(QWidget, ProfileMenuMixin):
         """Retourne à la page de login"""
         pass
 
-    def toggle_sidebar(self):
-        self.sidebar_expanded = not self.sidebar_expanded
-
-        self.animation_min = QPropertyAnimation(self.sidebar, b"minimumWidth")
-        self.animation_max = QPropertyAnimation(self.sidebar, b"maximumWidth")
-
-        for anim in (self.animation_min, self.animation_max):
-            anim.setDuration(300)
-            anim.setEasingCurve(QEasingCurve.Type.InOutQuart)
-
-        if self.sidebar_expanded:
-            self.animation_min.setStartValue(self.scale_value(100))
-            self.animation_min.setEndValue(self.scale_value(200))
-            self.animation_max.setStartValue(self.scale_value(100))
-            self.animation_max.setEndValue(self.scale_value(200))
-            self.animation_max.finished.connect(lambda: self.show_sidebar_text(True))
-        else:
-            self.show_sidebar_text(False)
-            self.animation_min.setStartValue(self.scale_value(200))
-            self.animation_min.setEndValue(self.scale_value(100))
-            self.animation_max.setStartValue(self.scale_value(200))
-            self.animation_max.setEndValue(self.scale_value(100))
-
-        self.animation_min.start()
-        self.animation_max.start()
-
 
 if __name__ == "__main__":
     import sys
@@ -1016,3 +1262,4 @@ if __name__ == "__main__":
     window.show()
 
     sys.exit(app.exec())
+
