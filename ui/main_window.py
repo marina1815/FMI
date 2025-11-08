@@ -40,8 +40,8 @@ class AppWindow(QWidget):
         self.content_layout.setSpacing(0)
 
         # Header
-        self.create_header()
-        self.content_layout.addWidget(self.header)
+        #self.create_header()
+        #self.content_layout.addWidget(self.header)
 
         # QStackedWidget
         self.stack = QStackedWidget()
@@ -60,7 +60,8 @@ class AppWindow(QWidget):
     # =========================================================
     # 🔹 Création du header(profil)
     # =========================================================
-    def create_header(self):
+    """
+        def create_header(self):
         self.header = QWidget()
         self.header.setFixedHeight(self.scale_value(60, False))
         self.header_layout = QHBoxLayout(self.header)
@@ -73,7 +74,7 @@ class AppWindow(QWidget):
         self.header_layout.addStretch()
 
         #self.profile_menu = self.create_profile_menu()
-        """  
+        
         # Mettre à jour le nom d'utilisateur dans le menu profil
         if hasattr(self, 'username') and self.username:
             self.set_username(self.username)
@@ -104,11 +105,12 @@ class AppWindow(QWidget):
     def create_sidebar_buttons(self):
         """Crée les boutons de la sidebar avec icônes et texte"""
         self.sidebar_layout.addSpacing(self.scale_value(30, False))
-        self.scan_btn = self.create_nav_button("img/scanner.png", "Home", "home")
+        self.home_btn = self.create_nav_button("img/home.png", "Home", "home")
+        self.scan_btn = self.create_nav_button("img/scanner.png", "Scan", "scanner")
         self.dashboard_btn = self.create_nav_button("img/dashboard.png", "Dashboard", "dashboard")
         self.identity_btn = self.create_nav_button("img/identity.png", "Identity", "identity")
 
-        for btn in [self.scan_btn, self.dashboard_btn, self.identity_btn]:
+        for btn in [self.home_btn, self.scan_btn,self.dashboard_btn, self.identity_btn]:
             self.sidebar_layout.addWidget(btn)
 
         self.sidebar_layout.addSpacing(self.scale_value(380, False))
@@ -120,7 +122,7 @@ class AppWindow(QWidget):
         for btn in [self.settings_btn, self.help_btn, self.about_btn]:
             self.sidebar_layout.addWidget(btn)
 
-        self.select_button(self.scan_btn)
+        self.select_button(self.home_btn)
 
     def create_nav_button(self, icon_path, tooltip="", button_id=""):
         """Crée un bouton de navigation avec icône seulement"""
@@ -140,7 +142,7 @@ class AppWindow(QWidget):
 
     def select_button(self, button):
         """Sélectionne un bouton et désélectionne les autres"""
-        all_buttons = [self.scan_btn, self.dashboard_btn, self.identity_btn,
+        all_buttons = [self.home_btn, self.scan_btn,self.dashboard_btn, self.identity_btn,
                        self.settings_btn, self.help_btn, self.about_btn]
 
         for btn in all_buttons:
@@ -238,13 +240,13 @@ class AppWindow(QWidget):
 
     def show_sidebar_text(self, show):
         try:
-            buttons = [self.scan_btn, self.dashboard_btn, self.identity_btn,
+            buttons = [self.home_btn,self.scan_btn, self.dashboard_btn, self.identity_btn,
                        self.settings_btn, self.help_btn, self.about_btn]
-            icons = ["img/scanner.png", "img/dashboard.png", "img/identity.png",
+            icons = ["img/home.png","img/scanner.png", "img/dashboard.png", "img/identity.png",
                      "img/setting.png", "img/question.png", "img/about.png"]
-            active_icons = ["img/scanner_selec.png", "img/dashboard_selec.png", "img/identity_selec.png",
+            active_icons = ["img/home_selec.png","img/scanner_selec.png", "img/dashboard_selec.png", "img/identity_selec.png",
                             "img/setting_selec.png", "img/question_selec.png", "img/about_selec.png"]
-            texts = [" Home", " Dashboard", " Identity", " Settings", " Help", " About"]
+            texts = [" Home","Scan"," Dashboard", " Identity", " Settings", " Help", " About"]
 
             icon_size = self.scale_value(24)
             for i, btn in enumerate(buttons):
@@ -404,6 +406,8 @@ class AppWindow(QWidget):
 
         # 🚀 Charger la page correspondante
         if button_id == "home":
+            self.load_home(username="User")
+        elif button_id == "scan":
             self.load_home(username="User")
         elif button_id == "dashboard":
             self.load_dashboard(username="User")
