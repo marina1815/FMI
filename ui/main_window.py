@@ -104,7 +104,7 @@ class AppWindow(QWidget):
     def create_sidebar_buttons(self):
         """Crée les boutons de la sidebar avec icônes et texte"""
         self.sidebar_layout.addSpacing(self.scale_value(30, False))
-        self.scan_btn = self.create_nav_button("img/scanner.png", "Home", "scanner")
+        self.scan_btn = self.create_nav_button("img/scanner.png", "Home", "home")
         self.dashboard_btn = self.create_nav_button("img/dashboard.png", "Dashboard", "dashboard")
         self.identity_btn = self.create_nav_button("img/identity.png", "Identity", "identity")
 
@@ -420,8 +420,8 @@ class AppWindow(QWidget):
         print(f"Bouton cliqué: {button_id}")
 
         # 🚀 Charger la page correspondante
-        if button_id == "scanner":
-            self.load_scan(username="User")
+        if button_id == "home":
+            self.load_home(username="User")
         elif button_id == "dashboard":
             self.load_dashboard(username="User")
         elif button_id == "identity":
