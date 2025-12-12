@@ -1,448 +1,393 @@
 import os
-from PyQt6.QtGui import QFont, QPixmap, QIcon, QPainter, QColor
+from PyQt6.QtGui import QFont, QIcon
 from PyQt6.QtWidgets import *
-from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QSize, QDateTime, pyqtProperty
-from PyQt6.QtWidgets import QGraphicsDropShadowEffect
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
 
-from core.config_manager import get_mode
-from core.integrity_monitoring import *
+from core.integrity_monitoring import startMonitoring, stopMonitoring, build_baseline_for_folder, build_baseline_for_file
+from core.config_manager import get_mode, update_mode
+
+from core.user_manager import load_current_user
+from core.gestion_db import get_baseline_by_user, get_files, add_scan_history
 
 
-class ShadowFrame(QFrame):
-    def __init__(self, parent=None):
-        super().__init__(parent)
+base_dir = os.path.dirname(os.path.abspath(__file__))
+addFile_path = os.path.join(base_dir, "../img/file.png")
+document_path = os.path.join(base_dir, "../img/dossier.png")
+scann_path = os.path.join(base_dir,"../img/scan.png")
+log_path = os.path.join(base_dir,"../img/exit.png")
+arret_path = os.path.join(base_dir,"../img/arret.png")
+# -------------------------
+# Worker thread pour baseline
+# -------------------------
+class BaselineWorker(QThread):
+    finished_build = pyqtSignal(int)  # emit nombre de fichiers traités
+    error = pyqtSignal(str)  # emit message d'erreur
+    log = pyqtSignal(str)  # emit log lines
 
-    def apply_shadow_style(self):
-        self.setStyleSheet("""
-            ShadowFrame {
-                background-color: white;
-                border: 1px solid #3342CC;
-                border-radius: 20px;
-                margin: 5px;
-            }
-            ShadowFrame QLabel {
-                color: black;
-                font-weight: bold;
-                background-color: white;
-            }
-            ShadowFrame QPushButton {
-                color: black;
-                background-color: #E0E0E0;
-                border-radius: 10px;
-                padding: 5px;
-            }
-            ShadowFrame:hover {
-                border: 2px solid #3342CC;
-            }
-        """)
-
-        shadow_effect = QGraphicsDropShadowEffect()
-        shadow_effect.setBlurRadius(20)
-        shadow_effect.setColor(QColor("#1325d1"))
-        shadow_effect.setOffset(0, 0)
-        self.setGraphicsEffect(shadow_effect)
-
-"""
-
- 
-btn add folder 
-btn add file 
-box  list file 
-button start scan 
-"""
-
-class ScanPage(QWidget):
-    def __init__(self, is_dark_theme=False, username=None, email=None):
+    def __init__(self, folder: str, username: str):
         super().__init__()
-        self.is_dark_theme = is_dark_theme
+        self.folder = folder
         self.username = username
-        self.email = email
 
-        self.apply_window_style()
-        self.create_main_layout()
-        self.create_main_content()
+    def run(self):
+        try:
+            self.log.emit(f"🔍 Démarrage du build pour : {self.folder}")
+            # appelle ta fonction existante (couteuse) dans le thread
+            count = build_baseline_for_folder(self.folder, self.username)
+            if count is None:
+                count = 0
+            self.log.emit(f"✅ Build terminé : {count} fichiers enregistrés.")
+            self.finished_build.emit(count)
+        except Exception as e:
+            # envoie l'erreur pour affichage
+            self.error.emit(str(e))
 
 
+# -------------------------
+# Main GUI
+# -------------------------
+class ScanPage(QWidget):
+    def __init__(self, username="User"):
+        super().__init__()
+        self.username = username
+        self.worker = None  # BaselineWorker instance when running
 
-    # -------------------------
-    # Fenêtre principale
-    # -------------------------
-    def create_main_layout(self):
+        # --- Main Layout ---
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(10, 10, 10, 10)
+        self.main_layout.setContentsMargins(15, 15, 15, 15)
         self.main_layout.setSpacing(10)
 
-    def apply_window_style(self):
+        # --- Top Controls ---
+        self._setup_top_bar()
+
+        # --- Splitter (Table + Right Panel) ---
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.main_layout.addWidget(self.splitter)
+
+        # --- Table ---
+        self._setup_table_widget()
+
+        # --- Right Panel (Logs + Details) ---
+        self.right_panel = self._setup_right_panel()
+
+        self.splitter.addWidget(self.right_panel)
+        self.right_panel.setVisible(False)
+
+        # File details section
+        details_label = QLabel("File Details")
+        details_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        self.main_layout.addWidget(details_label)
+
+        self.detail_box = QTextEdit()
+        self.detail_box.setReadOnly(True)
+        self.detail_box.setStyleSheet("""
+            QTextEdit {
+                background: #ffffff;
+                border: 2px solid #c5cae9;
+                border-radius: 10px;
+                padding: 12px;
+                color: #2c2c54;
+                font-size: 15px;
+                font-weight: 500;
+                font-family: 'Segoe UI';
+            }
+        """)
+        self.detail_box.setMinimumHeight(140)
+        self.detail_box.setVisible(False)
+
+        self.main_layout.addWidget(self.detail_box, stretch=0)
+        self.main_layout.setStretchFactor(self.splitter, 5)  # Table + logs take most space
+        self.main_layout.setStretchFactor(self.detail_box, 1)  # Detail is smaller
+
+        # --- Scan Info Label ---
+        self.labelScan = QLabel()
+        self.labelScan.setStyleSheet("color: #555; font-style: italic;")
+        self.main_layout.addWidget(self.labelScan)
+
+        # --- Load from DB ---
+        self.load_baseline_from_db()
+
+        # --- Global Style ---
         self.setStyleSheet("""
             QWidget {
-                margin:0px;
-                padding:0px;
-                background-color: #e1e1e3;
-            }
-            QPushButton{
-            background-color: #2301C0;
-            color: white; border-radius: 8px;
-            padding: 12px; font-size: 15px; font-weight: bold;
-        }
-        QPushButton :hover {
-                background-color: #120A37;
-            }
-        """)
-
-    # -------------------------
-    # Content principal
-    # -------------------------
-    def create_main_content(self):
-        self.main_content = QWidget()
-        self.main_layout.addWidget(self.main_content)
-        self.main_content_layout = QVBoxLayout(self.main_content)
-        self.main_content_layout.setContentsMargins(10, 10, 10, 10)
-        self.main_content_layout.setSpacing(20)
-
-        # Header
-        header_widget = QWidget()
-        header_layout = QHBoxLayout(header_widget)
-        header_layout.setContentsMargins(0, 0, 0, 0)
-        header_layout.addStretch()
-        self.main_content_layout.addWidget(header_widget)
-
-        # Section icône + texte
-        icon_text_widget = QWidget()
-        icon_text_layout = QHBoxLayout(icon_text_widget)
-        icon_text_layout.setSpacing(20)
-        icon_text_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        # Sections gauche/droite
-        self.sections_widget = QWidget()
-        self.sections_layout = QHBoxLayout(self.sections_widget)
-        self.sections_layout.setSpacing(20)
-        self.main_content_layout.addWidget(self.sections_widget)
-
-        # Colonne gauche
-        self.left_column = QWidget()
-        self.left_layout = QVBoxLayout(self.left_column)
-        self.left_layout.setSpacing(20)
-        self.sections_layout.addWidget(self.left_column, stretch=2)
-
-        # Quick Scan frame
-        self.create_quick_add_frame()
-        self.create_view_frame()
-
-        # Colonne droite
-        self.right_column = QWidget()
-        self.right_layout = QVBoxLayout(self.right_column)
-        self.right_layout.setSpacing(20)
-        self.sections_layout.addWidget(self.right_column, stretch=1)
-        self.create_button_frame()
-        self.create_stats_frame()
-
-
-    # -------------------------
-    # Quick Scan
-    # -------------------------
-    def create_quick_add_frame(self):
-        # === 🧭 Cadre principal ===
-        file_frame = ShadowFrame()
-        file_frame.apply_shadow_style()
-        self.left_layout.addWidget(file_frame)
-
-        main_layout = QVBoxLayout(file_frame)
-        main_layout.setContentsMargins(20, 15, 20, 15)
-        main_layout.setSpacing(15)
-
-        # === 📂 Ligne chemin + bouton de sélection ===
-        path_layout = QHBoxLayout()
-        path_layout.setSpacing(10)
-
-        self.path_edit = QLineEdit()
-        self.path_edit.setReadOnly(True)
-        self.path_edit.setPlaceholderText("No folder selected")
-        self.path_edit.setStyleSheet("""
+                background-color: #f4f5fa; font-family: 'Segoe UI'; }
             QLineEdit {
-                background-color: #F7FAFC;
-                border: 2px solid #3342CC;
-                border-radius: 10px;
-                padding: 10px;
-                font-size: 14px;
-                color: #2D3748;
-            }
-            QLineEdit:focus {
-                border-color: #2B6CB0;
-            }
-        """)
+                border: 1px solid #ccc; border-radius: 8px; padding: 8px; font-size: 14px; }
 
-        self.folder_btn = QPushButton("Browse Folders")
-        self.folder_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.folder_btn.setFixedWidth(160)
-        self.folder_btn.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
-        self.folder_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #1A237E;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 10px;
-            }
+            QPushButton:checked {
+                    background-color: #5A4FDF;
+                    font-weight: bold;
+                    border-radius: 5px;
+                }
             QPushButton:hover {
-                background-color: #0D174D;
-            }
-            QPushButton:pressed {
-                background-color: #060B2B;
-            }
-        """)
-        self.folder_btn.clicked.connect(self.add_folder)
+                    background-color: #3A3A8D;
+                }
 
-        path_layout.addWidget(self.path_edit, stretch=1)
-        path_layout.addWidget(self.folder_btn, stretch=0)
-        main_layout.addLayout(path_layout)
-
-        # === 🧱 Ligne des boutons d’action ===
-        button_layout = QHBoxLayout()
-        button_layout.setSpacing(15)
-
-        # Fonction pour styliser les boutons
-        def create_button(text, color="#1A237E", hover="#0D174D", callback=None):
-            btn = QPushButton(text)
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
-            btn.setMinimumHeight(45)
-            btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {color};
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    padding: 10px 15px;
-                }}
-                QPushButton:hover {{
-                    background-color: {hover};
-                }}
-                QPushButton:pressed {{
-                    background-color: #060B2B;
-                }}
-            """)
-            if callback:
-                btn.clicked.connect(callback)
-            return btn
-
-        self.addFolder_btn = create_button("➕ Add Folder to Database", color="#3342CC", hover="#2B3AA0")
-        self.createFile_btn = create_button("📄 Create File", color="#3342CC", hover="#2B3AA0")
-        self.showContent_btn = create_button(
-            "📁 Show Folder Content",
-            color="#283593",
-            hover="#1E2B6B",
-            callback=self.refresh_list  # 🔗 Connexion directe à ta fonction
-        )
-
-        button_layout.addWidget(self.addFolder_btn)
-        button_layout.addWidget(self.createFile_btn)
-        button_layout.addWidget(self.showContent_btn)
-
-        main_layout.addLayout(button_layout)
-
-    def add_folder (self):
-        folder = QFileDialog.getExistingDirectory(window, "Select a folder ")
-        if folder:
-            try:
-                self.path_edit.setText(f"{folder}")
-
-
-            except Exception as error:
-                QMessageBox.critical(window, "Erreur", f"Impossible to add folder :\n{error}")
-
-
-    def create_view_frame(self):
-        """Crée une zone d'affichage défilable pour voir les fichiers d'un dossier (ex: log.txt)."""
-        # === 📦 Cadre principal ===
-        view_frame = ShadowFrame()
-        view_frame.apply_shadow_style()
-        self.left_layout.addWidget(view_frame)
-
-        layout = QVBoxLayout(view_frame)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(10)
-
-        # === 🧾 Titre ===
-        title_label = QLabel("📂 Folder File Viewer")
-        title_label.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
-        title_label.setStyleSheet("color: #1A237E;")
-        layout.addWidget(title_label)
-
-        # === 🧱 ScrollArea ===
-        self.history_scroll_area = QScrollArea()
-        self.history_scroll_area.setWidgetResizable(True)
-        self.history_scroll_area.setStyleSheet("""
-            QScrollArea {
-                background-color: transparent;
-                border: none;
-            }
+            QPushButton {
+                background-color: #151B54; 
+                color: white; 
+                border-radius: 8px; 
+                padding: 8px 16px; 
+                font-size: 14px; 
+                font-weight: 600; 
+                }
+            QTableWidget 
+                { background-color: white; border-radius: 8px; border: 1px solid #ddd; }
+            QHeaderView::section 
+                { background-color: #e0e0e0; border: none; font-weight: bold; padding: 6px; }
             QScrollBar:vertical {
-                background-color: rgba(45, 55, 72, 0.8);
-                width: 10px;
-                border-radius: 5px;
-                margin: 0px;
+                border: none;
+                background: #f0f0f0;
+                width: 12px;
+                margin: 0px 0px 0px 0px;
+                border-radius: 6px;
             }
             QScrollBar::handle:vertical {
-                background-color: rgba(74, 85, 104, 0.8);
-                border-radius: 5px;
+                background: #c0c0c0;
                 min-height: 20px;
+                border-radius: 6px;
             }
             QScrollBar::handle:vertical:hover {
-                background-color: rgba(113, 128, 150, 0.8);
+                background: #a0a0a0;
             }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                border: none;
-                background: none;
+            QScrollBar::add-line, QScrollBar::sub-line {
+                height: 0;
             }
         """)
 
-        # === 📜 Conteneur interne (scrollable) ===
-        scroll_content = QWidget()
-        self.scroll_layout = QVBoxLayout(scroll_content)
-        self.scroll_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.scroll_layout.setSpacing(6)
+    # ------------------------------------
+    # Top Bar with Separate Buttons
+    # ------------------------------------
+    def _setup_top_bar(self):
+        top_bar = QHBoxLayout()
+        top_bar.setSpacing(10)
 
-        self.history_scroll_area.setWidget(scroll_content)
-        layout.addWidget(self.history_scroll_area)
+        # Folder Path
+        self.path_edit = QLineEdit()
+        self.path_edit.setPlaceholderText("Select folder path...")
+        self.path_edit.setReadOnly(True)
+        self.path_edit.setFixedHeight(38)
+        top_bar.addWidget(self.path_edit, stretch=1)
 
-        # === 🔄 Label de statut + bouton refresh ===
-        control_layout = QHBoxLayout()
-        self.stats_label = QLabel("No folder selected.")
-        self.stats_label.setStyleSheet("color: #4A5568; font-size: 13px;")
+        # Add Folder Button
+        self.btn_add_folder = QPushButton("Add Folder")
+        self.btn_add_folder.setIcon(QIcon(document_path))
+        self.btn_add_folder.clicked.connect(self.add_folder)
+        top_bar.addWidget(self.btn_add_folder)
 
+        # Add File Button
+        self.btn_add_file = QPushButton("Add File")
+        self.btn_add_file.setIcon(QIcon(addFile_path))
+        self.btn_add_file.clicked.connect(self.create_file_in_folder)
+        top_bar.addWidget(self.btn_add_file)
 
+        # Scan Button (manuel start/stop monitoring)
+        self.scan_button = QPushButton("Scan")
+        self.scan_button.setIcon(QIcon(scann_path))
+        self.scan_button.clicked.connect(self.lance_scan)
+        top_bar.addWidget(self.scan_button)
 
+        self.log_button = QPushButton("Logs")
+        self.log_button.setIcon(QIcon(log_path))
+        self.log_button.clicked.connect(self.toggle_log_panel)
+        top_bar.addWidget(self.log_button)
 
-        layout.addLayout(control_layout)
+        self.main_layout.addLayout(top_bar)
 
-    def refresh_list(self):
-        """Actualise la liste des fichiers dans la zone de scroll."""
+    # ------------------------------------
+    # Table Widget
+    # ------------------------------------
+    def _setup_table_widget(self):
+        self.table = QTableWidget()
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(["Name", "Folder", "Size (Bytes)", "Modified Time", "User"])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.verticalHeader().setVisible(False)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.itemSelectionChanged.connect(self.display_file_details)
+        self.splitter.addWidget(self.table)
+
+    # ------------------------------------
+    # Right Panel (Logs )
+    # ------------------------------------
+    def _setup_right_panel(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
+
+        # Logs section
+        logs_label = QLabel("Log Panel")
+        logs_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        layout.addWidget(logs_label)
+
+        self.log_area = QScrollArea()
+        self.log_area.setWidgetResizable(True)
+        log_content = QWidget()
+        self.log_layout = QVBoxLayout(log_content)
+        self.log_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.log_area.setWidget(log_content)
+        layout.addWidget(self.log_area, stretch=2)
+
+        return panel
+
+    # ------------------------------------
+    # Append Logs
+    # ------------------------------------
+
+    def toggle_log_panel(self):
+        self.right_panel.setVisible(not self.right_panel.isVisible())
+
+    def _append_log(self, text):
+        label = QLabel(text)
+        label.setWordWrap(True)
+        label.setStyleSheet("""
+            QLabel {
+                background-color: #EEF1FF;
+                border-left: 4px solid #5A4FDF;
+                border-radius: 6px;
+                padding: 8px 10px;
+                color: #1A237E;
+                font-size: 13px;
+            }
+        """)
+        self.log_layout.addWidget(label)
+        self.log_area.verticalScrollBar().setValue(self.log_area.verticalScrollBar().maximum())
+
+    # ------------------------------------
+    # Load baseline from DB
+    # ------------------------------------
+    def load_baseline_from_db(self):
         try:
-            # 🔄 Nettoyage
-            for i in reversed(range(self.scroll_layout.count())):
-                widget = self.scroll_layout.itemAt(i).widget()
-                if widget:
-                    widget.deleteLater()
+            username = load_current_user()
+            baseline_files = get_baseline_by_user(username)
+        except Exception:
+            baseline_files = []
 
-            folder_path = self.path_edit.text().strip()
-            if not folder_path or not os.path.isdir(folder_path):
-                self.stats_label.setText("❌ Please select a valid folder.")
+        self.table.setRowCount(0)
+        for row_index, file_info in enumerate(baseline_files):
+            self.table.insertRow(row_index)
+            self.table.setItem(row_index, 0, QTableWidgetItem(os.path.basename(file_info["path"])))
+            self.table.setItem(row_index, 1, QTableWidgetItem(os.path.dirname(file_info["path"])))
+            self.table.setItem(row_index, 2, QTableWidgetItem(str(file_info.get("size", 0))))
+            self.table.setItem(row_index, 3, QTableWidgetItem(file_info.get("modified_time", "-")))
+            self.table.setItem(row_index, 4, QTableWidgetItem(file_info.get("username", "-")))
+
+    # ------------------------------------
+    # File Details Display
+    # ------------------------------------
+    def display_file_details(self):
+        selected = self.table.currentRow()
+        if selected == -1:
+            self.detail_box.setVisible(False)  # hide if no row selected
+            return
+        details = []
+        for i in range(self.table.columnCount()):
+            header = self.table.horizontalHeaderItem(i).text()
+            value = self.table.item(selected, i).text()
+            details.append(f"{header}: {value}")
+        self.detail_box.setText("\n".join(details))
+        self.detail_box.setVisible(True)  # show when row selected
+
+    # ------------------------------------
+    # Folder and File Actions (avec worker)
+    # ------------------------------------
+    def add_folder(self):
+        if get_mode() == "manuel" :
+
+            folder = QFileDialog.getExistingDirectory(self, "Select Folder")
+        else:
+            QMessageBox.warning(self, "Warning", "Scan already running (auto mode active).")
+            return
+
+        if folder  :
+            # affiche le path
+            self.path_edit.setText(folder)
+            self._append_log(f"Selected folder: {folder}")
+
+            # démarre le build baseline dans un thread pour éviter freeze/crash
+            if self.worker and self.worker.isRunning():
+                QMessageBox.warning(self, "Warning", "A baseline build is already running.")
                 return
 
-            files = os.listdir(folder_path)
-            if not files:
-                self.stats_label.setText("📭 Folder is empty.")
-                return
+            username = load_current_user()
+            self.worker = BaselineWorker(folder, username)
+            # connections
+            self.worker.log.connect(self._append_log)
+            self.worker.finished_build.connect(self._on_build_finished)
+            self.worker.error.connect(self._on_build_error)
 
-            # 🧾 Ajout des fichiers dans la zone scrollable
-            for file in sorted(files):
-                item_label = QLabel(f"📄 {file}")
-                item_label.setStyleSheet("""
-                    QLabel {
-                        background-color: #EDF2F7;
-                        border: 1px solid #CBD5E0;
-                        border-radius: 8px;
-                        padding: 6px 10px;
-                        color: #2D3748;
-                    }
-                    QLabel:hover {
-                        background-color: #E2E8F0;
-                    }
-                """)
-                self.scroll_layout.addWidget(item_label)
+            # disable buttons while building
+            self._set_controls_enabled(False)
+            self._append_log("↪ Lancement du build baseline en arrière-plan...")
+            self.worker.start()
 
-            self.stats_label.setText(f"✅ {len(files)} files loaded.")
-        except Exception as error:
-            self.stats_label.setText(f"⚠️ Error: {error}")
+    def _on_build_finished(self, count):
+        self._append_log(f"Build finished: {count} files saved to baseline.")
+        self._set_controls_enabled(True)
+        # reload table
+        self.load_baseline_from_db()
+        QMessageBox.information(self, "Build done", f"{count} files saved for the selected folder.")
 
-    def start_scan(self):
-        print(get_mode())
-        if get_mode()=="auto":
+    def _on_build_error(self, message):
+        self._append_log(f"❗ Erreur pendant le build: {message}")
+        self._set_controls_enabled(True)
+        QMessageBox.critical(self, "Erreur", f"Erreur pendant le build baseline:\n{message}")
 
-            QMessageBox.warning(self, "Erreur", "le mode est auto le scan.")
+    def _set_controls_enabled(self, enabled: bool):
+        # désactive/active les boutons pour éviter re-entrance
+        self.btn_add_folder.setEnabled(enabled)
+        self.btn_add_file.setEnabled(enabled)
+        self.scan_button.setEnabled(enabled)
+        self.log_button.setEnabled(enabled)
+
+    def create_file_in_folder(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select File")
+        if file_path:
+            self.path_edit.setText(file_path)
+            self._append_log(f"Selected file: {file_path}")
+
+            try:
+                user = load_current_user()
+                # Si ta fonction attend une liste :
+                build_baseline_for_file(file_path, user)
+                self.load_baseline_from_db()  # recharge la table
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Error while adding file:\n{e}")
         else:
-            print('Start scan ')
-            print(get_mode())
-    # -------------------------
-    # Stats
-    # -------------------------
-    def create_stats_frame(self):
-        scan_frame = ShadowFrame()
-        scan_frame.apply_shadow_style()
-        self.right_layout.addWidget(scan_frame)
-        layout = QVBoxLayout(scan_frame)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(10)
-        label = QLabel()
-        pixmap = QPixmap("logoApplication.png")
+            QMessageBox.warning(self, "Error", "Please select a valid file  .")
 
-        pixmap = pixmap.scaled(
-            500, 500,
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation
-        )
-        label.setPixmap(pixmap)
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    # ------------------------------------
+    # Scan Button Logic
+    # ------------------------------------
+    def lance_scan(self):
+        if get_mode() == "manuel":
+            if self.scan_button.text().lower() == "scan":
+                username = load_current_user()
+                print(username)
+                paths = get_files()
+                print(paths)
 
-        label.setPixmap(pixmap)
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                startMonitoring(paths, username)
+                add_scan_history(username,"in_progress")
+                self.scan_button.setText("Stop")
+                self.scan_button.setIcon(QIcon(arret_path))
 
-        self.scan_btn = QPushButton("Start Scan")
-        self.scan_btn.setStyleSheet("""
-                 QPushButton{
-                    background-color: #2301C0;
-                    color: white; border-radius: 8px;
-                    padding: 12px; font-size: 15px; font-weight: bold;
-                }
-                QPushButton :hover {
-                        background-color: #120A37;
-                    }
-                """)
-
-        self.scan_btn.clicked.connect(self.start_scan)
-        layout.addWidget(label)
-        layout.addWidget(self.scan_btn)
-
-    def create_button_frame(self):
-        button_frame = ShadowFrame()
-        button_frame.apply_shadow_style()
-        self.right_layout.addWidget(button_frame)
-        layout = QVBoxLayout(button_frame)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(10)
-
-        Autoscan_title = QLabel("Auto scan status")
-        Autoscan_title.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
-        Autoscan_title.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        Autoscan_title.setStyleSheet("color: black; background-color: transparent; padding: 0; margin: 0;border:none;")
-        Autoscan_lastScan = QLabel("Disabled")
-        if get_mode()== "manuel":
-            Autoscan_lastScan.setText("🔴 Disabled")
-            Autoscan_lastScan.setStyleSheet("color: red; background-color: transparent; padding: 0; margin: 0;border:none;")
+                self.labelScan.setText("🟢 Monitoring started...")
+                self._append_log("Started monitoring process.")
+            else:
+                username = load_current_user()
+                stopMonitoring()
+                add_scan_history(username, "completed")
+                self.scan_button.setText("Scan")
+                self.scan_button.setIcon(QIcon(scann_path))
+                self.labelScan.setText("🛑 Monitoring stopped.")
+                self._append_log("Stopped monitoring process.")
         else:
-            Autoscan_lastScan.setText("🟢 Running ...")
-            Autoscan_lastScan.setStyleSheet("color: green ; background-color: transparent; padding: 0; margin: 0;border:none;")
+            QMessageBox.warning(self, "Warning", "Scan already running (auto mode active).")
 
+    # ------------------------------------
+    # Change Mode
+    # ------------------------------------
 
-
-        layout.addWidget(Autoscan_title)
-        layout.addWidget(Autoscan_lastScan)
-
-    def update_last_scan_display(self):
-        last_scan_label = self.findChild(QLabel, "last_scan_label")
-        if last_scan_label:
-            last_scan_label.setText(f"Last Scan: {self.last_scan_time}")
-
-
-
-
-# -------------------------
-# Lancer l'application
-# -------------------------
-if __name__ == "__main__":
-    import sys
-    app = QApplication(sys.argv)
-    window = ScanPage(username="Tester", email="tester@example.com")
-    window.resize(1200, 700)
-    window.show()
-    sys.exit(app.exec())
