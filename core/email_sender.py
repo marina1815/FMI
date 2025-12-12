@@ -4,8 +4,8 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import random
 
-EMAIL_SENDER = "hanaaamira9@gmail.com"
-EMAIL_PASSWORD = "zcwt juvb paqt moyc"
+EMAIL_SENDER = "fortifile.app@gmail.com"
+EMAIL_PASSWORD = "qsvd zsrr omvy nwzt"
 
 
 def send_confirmation_email(receiver_email, username):
@@ -78,3 +78,36 @@ def send_code_confirmation_email(to_email, username, code):
     except Exception as e:
         print("Erreur d’envoi :", e)
         return False
+
+
+def send_custom_email(username, user_email, message):
+    """Envoie un e-mail contenant le code de confirmation."""
+    subject = f"[Help Request] Message from {username}"
+    body = f"""
+        You received a new help request from {username} ({user_email}):
+
+        -------------------------------
+        {message}
+        -------------------------------
+        """
+    msg = MIMEMultipart()
+    msg["From"] = EMAIL_SENDER
+    msg["To"] = "fortifile.app@gmail.com"
+    msg["Subject"] = subject
+    msg.attach(MIMEText(body, "plain"))
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        print("Erreur d’envoi :", e)
+        return False
+
+
+
+
+
+
+
